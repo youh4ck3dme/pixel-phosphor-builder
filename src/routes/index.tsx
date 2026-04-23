@@ -62,10 +62,10 @@ const KPIS = [
 ];
 
 const AGENTS = [
-  { name: "Researcher", desc: "Gathers sources & synthesizes",  progress: 84, color: "var(--phosphor)" },
-  { name: "Analyst",    desc: "Crunches data, surfaces signal", progress: 62, color: "var(--phosphor)" },
-  { name: "Planner",    desc: "Breaks goals into next actions", progress: 48, color: "var(--amber)" },
-  { name: "Writer",     desc: "Drafts and edits long-form copy",progress: 91, color: "var(--phosphor)" },
+  { name: "Researcher", desc: "Gathers sources & synthesizes",  progress: 84, color: "var(--phosphor)", starter: "Research the top 5 EV brands and summarize differentiators" },
+  { name: "Analyst",    desc: "Crunches data, surfaces signal", progress: 62, color: "var(--phosphor)", starter: "Build a dashboard analyzing Q4 sales with charts" },
+  { name: "Planner",    desc: "Breaks goals into next actions", progress: 48, color: "var(--amber)",    starter: "Plan a 7-day product launch with daily milestones" },
+  { name: "Writer",     desc: "Drafts and edits long-form copy",progress: 91, color: "var(--phosphor)", starter: "Write a landing page hero + 3 features for an AI startup" },
 ];
 
 /* ──────────────────────────────────────────────────────────── */
@@ -430,7 +430,7 @@ function KpiGrid() {
 }
 
 /* ──────────────── Agents ──────────────── */
-function AgentList() {
+function AgentList({ onPick }: { onPick: (starter: string) => void }) {
   return (
     <section className="min-h-0 flex flex-col">
       <div className="flex items-center justify-between shrink-0">
@@ -445,7 +445,10 @@ function AgentList() {
       >
         {AGENTS.map((a) => (
           <li key={a.name}>
-            <button className="group flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-2">
+            <button
+              onClick={() => onPick(a.starter)}
+              className="group flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-2"
+            >
               <div className="grid size-9 place-items-center rounded-[5px] hairline bg-background shrink-0">
                 <span className="font-display text-[15px] text-amber">{a.name[0]}</span>
               </div>
@@ -474,7 +477,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /* ──────────────── Bottom nav ──────────────── */
-function BottomNav() {
+function BottomNav({ onNew }: { onNew: () => void }) {
   const [active, setActive] = React.useState("home");
   const items = [
     { id: "home", icon: Home, label: "Home" },
@@ -494,6 +497,7 @@ function BottomNav() {
                   <Magnetic strength={0.5}>
                     <button
                       aria-label={it.label}
+                      onClick={() => { tap(12); onNew(); }}
                       className="grid size-10 place-items-center rounded-[5px] bg-amber text-black"
                       style={{ boxShadow: "0 0 18px -6px var(--amber)" }}
                     >
