@@ -21,7 +21,7 @@ export function Sparkline({
     .join(" ");
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="block overflow-hidden">
       <polyline
         points={points}
         fill="none"
