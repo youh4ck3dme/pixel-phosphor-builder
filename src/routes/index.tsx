@@ -120,8 +120,9 @@ function PhosphorHome() {
           paddingLeft: "max(env(safe-area-inset-left), clamp(12px, 4vw, 20px))",
           paddingRight: "max(env(safe-area-inset-right), clamp(12px, 4vw, 20px))",
           gridTemplateRows:
-            "auto auto auto auto auto minmax(0, 1fr) minmax(0, 1.2fr) auto",
+            "auto auto auto auto auto minmax(120px, 0.9fr) minmax(140px, 1fr) auto",
           rowGap: "clamp(8px, 1.6vh, 16px)",
+          paddingBottom: 0,
         }}
       >
         <TopBar />
@@ -166,7 +167,7 @@ function TopBar() {
           <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-phosphor animate-phosphor" />
         </button>
         <div className="size-8 rounded-full p-[1px]" style={{ background: "var(--amber)" }}>
-          <div className="grid h-full w-full place-items-center rounded-full bg-background font-mono text-xs">A</div>
+          <div className="grid h-full w-full place-items-center rounded-full bg-background font-mono text-[11px]">A</div>
         </div>
       </div>
     </header>
@@ -176,23 +177,21 @@ function TopBar() {
 /* ──────────────── Mode tabs ──────────────── */
 function ModeTabs({ mode, setMode }: { mode: string; setMode: (m: any) => void }) {
   return (
-    <nav className="hairline-bottom -mx-5 px-5 min-h-0">
-      <ul className="flex gap-5 overflow-x-auto pb-2 no-scrollbar">
+    <nav className="hairline-bottom -mx-5 px-3 min-h-0">
+      <ul className="flex justify-between gap-1 pb-2">
         {MODES.map((m) => {
           const active = m.id === mode;
           return (
-            <li key={m.id} className="relative shrink-0">
+            <li key={m.id} className="relative">
               <button
                 onClick={() => setMode(m.id)}
-                className="flex items-center gap-1.5 py-1 font-mono text-[11px] uppercase tracking-[0.18em] transition-colors"
+                className="flex items-center gap-1 py-1 font-mono uppercase tracking-[0.14em] transition-colors whitespace-nowrap"
                 style={{ color: active ? "var(--amber)" : "var(--muted-foreground)" }}
               >
-                <m.icon className="size-3.5" />
-                {m.label}
+                <m.icon className="size-3 hidden min-[380px]:inline-block" />
+                <span style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }}>{m.label}</span>
                 {m.badge && (
-                  <span className="ml-1 rounded-[3px] bg-phosphor/15 px-1 py-px text-[8px] tracking-widest text-phosphor">
-                    {m.badge}
-                  </span>
+                  <span className="ml-1 size-1.5 rounded-full bg-phosphor animate-phosphor" aria-label={m.badge} />
                 )}
               </button>
               {active && (
@@ -220,7 +219,7 @@ function Hero() {
         {greet}, Alex
       </p>
       <h1 className="font-display mt-1 font-medium leading-[1.04] text-foreground" style={{ fontSize: "clamp(26px, 8vw, 38px)" }}>
-        How can I help you<br />
+        How can I help you{" "}
         <span className="text-amber" style={{ textShadow: "0 0 24px color-mix(in oklab, var(--amber) 35%, transparent)" }}>today?</span>
       </h1>
     </Parallax>
@@ -275,7 +274,7 @@ function Composer({
             aria-label="Hold to record"
             onPointerDown={onMicDown}
             onPointerUp={onMicUp}
-            onPointerLeave={recording ? onMicUp : undefined}
+            onPointerCancel={recording ? onMicUp : undefined}
             className="relative grid size-9 place-items-center rounded-full hairline transition-colors"
             style={{
               borderColor: recording ? "var(--phosphor)" : "var(--border)",
@@ -336,20 +335,20 @@ function Suggestions({ onPick }: { onPick: (s: string) => void }) {
   const [seed, setSeed] = React.useState(0);
   const items = React.useMemo(() => SUGGESTIONS, [seed]);
   return (
-    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar min-h-0">
-      {items.map((s) => (
+    <div className="flex flex-wrap items-center gap-2 min-h-0">
+      {items.slice(0, 2).map((s) => (
         <button
           key={s}
           onClick={() => onPick(s)}
-          className="shrink-0 rounded-[5px] hairline bg-surface px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
+          className="truncate max-w-[60%] rounded-[5px] hairline bg-surface px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
         >
-          {s}
+          {s.length > 22 ? s.slice(0, 22) + "…" : s}
         </button>
       ))}
       <button
         aria-label="Refresh suggestions"
         onClick={() => setSeed((n) => n + 1)}
-        className="grid size-7 place-items-center rounded-[5px] text-muted-foreground transition-colors hover:text-amber"
+        className="ml-auto grid size-7 place-items-center rounded-[5px] text-muted-foreground transition-colors hover:text-amber"
       >
         <RefreshCw className="size-3.5" />
       </button>
@@ -360,21 +359,23 @@ function Suggestions({ onPick }: { onPick: (s: string) => void }) {
 /* ──────────────── KPI grid ──────────────── */
 function KpiGrid() {
   return (
-    <section className="min-h-0 flex flex-col">
+    <section className="min-h-0 flex flex-col overflow-hidden">
       <SectionLabel>Performance · last 30d</SectionLabel>
-      <div className="mt-2 grid grid-cols-2 gap-2 flex-1 min-h-0">
+      <div className="mt-2 grid grid-cols-2 grid-rows-2 gap-2 flex-1 min-h-0">
         {KPIS.map((k) => (
-          <Parallax key={k.label} intensity={3} className="min-h-0">
-            <div className="rounded-[5px] hairline bg-surface h-full flex flex-col justify-between" style={{ padding: "clamp(10px, 2.4vw, 14px)" }}>
-              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground truncate">
+          <Parallax key={k.label} intensity={3} className="min-h-0 min-w-0">
+            <div className="rounded-[5px] hairline bg-surface h-full flex flex-col justify-between overflow-hidden min-w-0" style={{ padding: "clamp(8px, 2vw, 12px)" }}>
+              <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground truncate shrink-0">
                 {k.label}
               </div>
-              <div className="font-mono font-medium leading-none text-foreground tabular-nums" style={{ fontSize: "clamp(22px, 6.4vw, 30px)" }}>
+              <div className="font-mono font-medium leading-none text-foreground tabular-nums truncate" style={{ fontSize: "clamp(18px, 5.4vw, 26px)" }}>
                 <CountUp to={k.value} decimals={k.decimals ?? 0} suffix={k.suffix ?? ""} />
               </div>
-              <div className="flex items-end justify-between">
-                <span className="font-mono text-[10px] text-amber">{k.delta}</span>
-                <Sparkline data={k.spark} width={64} height={18} />
+              <div className="flex items-end justify-between gap-1 shrink-0 min-w-0">
+                <span className="font-mono text-[9px] text-amber truncate">{k.delta}</span>
+                <div className="overflow-hidden shrink-0">
+                  <Sparkline data={k.spark} width={48} height={14} />
+                </div>
               </div>
             </div>
           </Parallax>
@@ -440,8 +441,8 @@ function BottomNav() {
   ];
   return (
     <nav className="-mx-5 min-h-0">
-      <div className="hairline-top bg-background/85 px-3 pt-2 backdrop-blur-xl" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}>
-        <ul className="flex items-center justify-between">
+      <div className="hairline-top bg-background/85 px-2 pt-2 backdrop-blur-xl" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
+        <ul className="grid grid-cols-5 place-items-center">
           {items.map((it) => {
             if (it.primary) {
               return (
@@ -449,10 +450,10 @@ function BottomNav() {
                   <Magnetic strength={0.5}>
                     <button
                       aria-label={it.label}
-                      className="grid size-12 place-items-center rounded-[5px] bg-amber text-black"
-                      style={{ boxShadow: "0 0 28px -6px var(--amber)" }}
+                      className="grid size-10 place-items-center rounded-[5px] bg-amber text-black"
+                      style={{ boxShadow: "0 0 18px -6px var(--amber)" }}
                     >
-                      <it.icon className="size-5" />
+                      <it.icon className="size-4" />
                     </button>
                   </Magnetic>
                 </li>
@@ -464,10 +465,10 @@ function BottomNav() {
                 <button
                   onClick={() => setActive(it.id)}
                   aria-label={it.label}
-                  className="flex flex-col items-center gap-1 px-3 py-2"
+                  className="flex flex-col items-center gap-1 px-2 py-1"
                   style={{ color: isActive ? "var(--amber)" : "var(--muted-foreground)" }}
                 >
-                  <it.icon className="size-5" />
+                  <it.icon className="size-[18px]" />
                   <span className="font-mono text-[9px] uppercase tracking-widest">{it.label}</span>
                 </button>
               </li>
