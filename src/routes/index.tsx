@@ -106,11 +106,24 @@ function PhosphorHome() {
   };
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div
+      className="relative bg-background text-foreground overflow-hidden"
+      style={{ height: "100dvh", width: "100vw" }}
+    >
       {/* Subtle CRT grid backdrop */}
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-40" />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-5 pb-28 pt-4">
+      <div
+        className="relative mx-auto grid w-full max-w-[480px] h-full min-h-0"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingLeft: "max(env(safe-area-inset-left), clamp(12px, 4vw, 20px))",
+          paddingRight: "max(env(safe-area-inset-right), clamp(12px, 4vw, 20px))",
+          gridTemplateRows:
+            "auto auto auto auto auto minmax(0, 1fr) minmax(0, 1.2fr) auto",
+          rowGap: "clamp(8px, 1.6vh, 16px)",
+        }}
+      >
         <TopBar />
         <ModeTabs mode={mode} setMode={setMode} />
         <Hero />
@@ -126,9 +139,8 @@ function PhosphorHome() {
         <Suggestions onPick={(s) => setPrompt(s)} />
         <KpiGrid />
         <AgentList />
+        <BottomNav />
       </div>
-
-      <BottomNav />
     </div>
   );
 }
