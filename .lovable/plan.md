@@ -1,63 +1,97 @@
 
 
-# Oprava chýb na home obrazovke
+# H4CK3D Builder v2 — "Lovable-killer" upgrade (+222 % na všetkom)
 
-Z fotky vidím **8 konkrétnych vizuálnych chýb**. Ku každej píšem presný prompt + opravu.
-
----
-
-### 1. Mode tabs pretekajú mimo obrazovku
-**Chyba:** `AUTOMATE` je orezaný, vznikol horizontal scroll. Plán zakazoval karusely.
-**Prompt na opravu:** *"Mode tabs musia vždy zmestiť všetkých 5 položiek (Ask/Research/Analyze/Build/Automate) v jednom riadku bez scrollu — použi `justify-between`, skráť labely na fluid `clamp(9px, 2.4vw, 11px)`, ikony skry pri šírke <380px, `NEW` badge presuň ako bodku."*
-**Fix:** `ul` z `flex gap-5 overflow-x-auto` → `flex justify-between gap-1`, fluid font, na <380px `hidden` ikona.
-
-### 2. KPI karty sa prekrývajú vertikálne
-**Chyba:** "SUCCESS RATE 98.2%" preteká cez "YOUR AGENTS" — karty nemajú vynútenú výšku v `1fr` zóne.
-**Prompt na opravu:** *"KPI grid 2×2 musí dodržať svoju gridovú výšku. Pridaj `grid-rows-2`, `min-h-0` na všetky deti, `overflow-hidden` na karty, zmenši padding a font sparku tak aby sa všetko zmestilo do priradenej `1fr` výšky bez pretečenia."*
-**Fix:** `grid-cols-2 grid-rows-2`, každá karta `overflow-hidden min-h-0`, sparkline width `48` height `14`.
-
-### 3. Sparkline visí mimo karty
-**Chyba:** Zelená čiara je nakreslená cez 2 susedné karty — SVG nemá `overflow-hidden` na rodičovi.
-**Prompt na opravu:** *"Pridaj `overflow-hidden` na karty a `preserveAspectRatio='none'` so správnym `viewBox` na SVG sparkline, aby kresba bola lokálna do svojho kontajnera."*
-**Fix:** Sparkline rodič `overflow-hidden`, SVG `block w-full`.
-
-### 4. Delta badge prekrýva sekciu nižšie
-**Chyba:** `+0.8%` sa premieta na "YOUR AGENTS" — flex-end footer karty preteká.
-**Prompt na opravu:** *"Karta KPI = vertikálny flex s `justify-between`, footer `mt-auto`, žiadne absolútne pozície, žiadne negatívne marginy."*
-**Fix:** `flex flex-col h-full justify-between`, footer s `shrink-0`.
-
-### 5. Bottom nav má 4 položky namiesto 5
-**Chyba:** Chýba "Settings", veľká dlaždica `+` zaberá 2× šírku a robí dieru uprostred.
-**Prompt na opravu:** *"Bottom nav = 5 rovnomerných slotov (Home, Agents, +, Docs, Settings) v `grid-cols-5`. Centrálny `+` sa zmestí do svojho slotu (40×40), nie 48px, glow obmedz na vlastný box."*
-**Fix:** `<ul>` na `grid grid-cols-5 place-items-center`, `+` button `size-10`, glow zmenšiť.
-
-### 6. Quick suggestions horizontal scroll
-**Chyba:** Texty sú orezané vpravo, scroll-bar carousel — proti dizajnovým princípom.
-**Prompt na opravu:** *"Suggestions: `flex-wrap`, max 2 chips viditeľné, dlhé texty `truncate` na 22 znakov, žiadny `overflow-x-auto`."*
-**Fix:** `flex flex-wrap` + `truncate max-w-[60%]`, refresh ikona vpravo.
-
-### 7. Agent list je odrezaný spodným navom
-**Chyba:** Vidno len pol riadku "Analyst" — `1.2fr` zóna nemá garantovanú minimálnu výšku a vrchné sekcie ju zožrali.
-**Prompt na opravu:** *"Zmenši grid-rows: hero `auto` → kompaktnejší, composer pevne `min-content`, KPI grid `minmax(140px, 0.9fr)`, agents `minmax(120px, 1fr)`. Garantuj agents min-height aspoň 2 riadky (96px)."*
-**Fix:** Prepočítané `gridTemplateRows` s konkrétnymi minimami v `px`.
-
-### 8. Spodný nav sa stráca pod safe-area
-**Chyba:** Nav padding-bottom nezohľadňuje plný `env(safe-area-inset-bottom)` na iOS, viditeľné aj v preview.
-**Prompt na opravu:** *"Bottom nav `padding-bottom: max(env(safe-area-inset-bottom), 12px)` + zaisti že root grid má `paddingBottom: 0` a nav má vlastnú safe-area zónu."*
-**Fix:** Nav už používa `max(env(...), 8px)` → zvýšiť na `12px` a pridať `paddingBottom: 0` na root grid container.
+Z aktuálnej home obrazovky (statická demo) spravím **plne funkčnú AI builder appku**: napíšeš prompt → Lovable AI Gateway streamuje **HTML/CSS kód** → vedľa beží **živý preview v iframe**. Plus 9 vyladení existujúcich nedostatkov.
 
 ---
 
-## Dodatočné mikro-opravy
-- **Hero**: `<br />` spôsobuje, že na úzkych obrazovkách vznikne 3-riadkový titul. Nahradím inline span s prirodzeným wrapom.
-- **Avatar `A`**: monogram 8px je príliš malý — zväčším na `text-[11px]`.
-- **Mic button**: `onPointerLeave` ruší nahrávanie pri jemnom pohybe — pridám `onPointerCancel` a toleranciu.
+## 1) Hlavná nová funkcia — Prompt → Live Preview generator
 
-## Súbory na úpravu
-| Súbor | Zmena |
-|---|---|
-| `src/routes/index.tsx` | grid-template-rows recalc, ModeTabs no-scroll, KpiGrid 2×2 fix, BottomNav 5-grid, Suggestions wrap, Hero wrap |
-| `src/components/phosphor/Sparkline.tsx` | `viewBox` + `preserveAspectRatio` fix |
+**Nová route `/build`** (otvorí sa po stlačení `Send` v composeri):
 
-Žiadne nové dependency, čistý surgical fix.
+```text
+┌─────────────────── 100dvh ───────────────────┐
+│ TopBar: ← back · "Untitled build" · ⟳ · ⤓   │  56px
+├──────────────────────────────────────────────┤
+│ Tabs: [ PREVIEW ]  [ CODE ]   ·  amber line  │  40px
+├──────────────────────────────────────────────┤
+│                                              │
+│   PREVIEW: <iframe srcDoc={generatedHtml}/>  │  1fr  (sandboxed)
+│   CODE:    <pre> stream tokenov, mono, line# │
+│                                              │
+├──────────────────────────────────────────────┤
+│ Mini-composer (sticky): prompt + Send + Mic  │  auto
+└──────────────────────────────────────────────┘
+```
+
+**Ako to funguje:**
+- **Server function** `generate.ts` (TanStack `createServerFn`) → volá **Lovable AI Gateway** (`google/gemini-2.5-flash`, free počas promo) so system promptom: *"Si front-end AI. Vráť JEDEN samostatný HTML dokument: `<!doctype html>` + inline CSS + voliteľný `<script>`. Žiadne externé URL okrem fontov Google. Žiadne markdown fence."*
+- **Streaming** odpovede cez `ReadableStream` → klient číta tokeny, append do `code` state.
+- **Live preview**: `iframe` so `sandbox="allow-scripts"` a `srcDoc={code}`. Re-render priebežne (debounced 200ms počas streamu, instant po dokončení).
+- **History**: každá generácia uložená v `localStorage` (key `h4ckd:builds`) — bez DB pre rýchly štart; tabuľky pridáme ako follow-up keď user povie "uložiť do cloudu".
+- **Copy / Download** tlačítka: HTML do clipboardu, alebo `.html` blob download.
+- **Mini-composer dole** umožňuje *iterovať*: "make hero bigger, add dark mode" → posiela aj predošlý HTML ako kontext (**diff iterácia**).
+
+**Loading state** = phosphor zelený ASCII scanner v code paneli (CRT efekt — týchto pár pixelov robí ten "Porsche" pocit).
+
+---
+
+## 2) Home obrazovka — vyladenie zostávajúcich nedostatkov (×222 %)
+
+| # | Nedostatok | Prompt na opravu | Implementácia |
+|---|---|---|---|
+| 1 | Hero zaberá veľa miesta keď klávesnica zatvorená | *"Hero: dynamický `font-size` cez `clamp(22px, 6.4vw, 34px)`, `line-height: 1`, max 2 riadky, ellipsis"* | Zmenšiť clamp + `line-clamp-2` |
+| 2 | Composer placeholder je generický | *"Placeholder rotuje 4 promptami každé 3s s fade, napr. 'Build a SaaS landing page…', 'Generate a pricing table…' "* | `useInterval` + AnimatePresence fade |
+| 3 | Send button nič nerobí | *"Send → `navigate({to:'/build', search:{ q: prompt }})` + clear inputu"* | TanStack `useNavigate` |
+| 4 | KPI sparkline skoro neviditeľná | *"Sparkline: gradient stroke amber→phosphor, end-dot phosphor s glow, area fill 8 % opacity"* | Update `Sparkline.tsx` |
+| 5 | Agents list nemá akciu | *"Tap na agenta → `/build` s preplneným promptom z agent.starter"* | Pridať `starter` field, navigate |
+| 6 | Bottom nav `+` je bez funkcie | *"`+` otvorí `/build` s prázdnym promptom (rovnako ako Send)"* | onClick navigate |
+| 7 | Žiadny haptic feedback | *"Pri tape primárnych CTA volaj `navigator.vibrate?.(8)` (best-effort)"* | helper `tap()` |
+| 8 | Žiadny first-paint dojem | *"Pri prvom mounte: hero a KPI **fade+slide-up stagger** 60ms (framer)"* | `motion.div` variants |
+| 9 | Suggestion chipy sú náhodné | *"3 fixné chipy podľa aktívneho `mode` (Ask/Research/…) — kontextové"* | mapa `mode → chips[]` |
+
+---
+
+## 3) Bonus polish (pretože "spoka za 500k")
+
+- **Command palette `⌘K`** (mobile: long-press logo): otvorí Sheet s rýchlymi akciami (New build · Open recent · Switch model).
+- **Model picker** v composeri reálne funguje: `Pro = gemini-2.5-pro`, `Flash = gemini-2.5-flash`. Preferencia uložená v localStorage.
+- **Recent builds** ako 3. KPI riadok v home (mini grid 3 thumbnailov vygenerovaných z prvých 200 znakov HTML cez `<iframe scaled 0.2>`).
+- **Toast systém** (sonner už máme) — copy/download/error feedback v amber hairline štýle.
+- **Skeleton states** — kým streamuje, kód panel ukazuje shimmering hairline rows.
+
+---
+
+## 4) Technický stack & súbory
+
+**Nové súbory:**
+- `src/routes/build.tsx` — celý builder (preview/code split + mini composer)
+- `src/server/generate.ts` — `createServerFn` streaming wrapper okolo Lovable AI Gateway
+- `src/lib/ai.ts` — typy + system prompt + helper `streamGenerate(prompt, prevHtml?)`
+- `src/lib/storage.ts` — `localStorage` helpers pre builds history
+- `src/components/phosphor/CodePane.tsx` — mono code viewer s line numbers + scroll-to-bottom počas streamu
+- `src/components/phosphor/PreviewFrame.tsx` — sandboxed iframe wrapper
+- `src/hooks/useHaptic.ts`, `src/hooks/useRotatingPlaceholder.ts`
+
+**Upravené súbory:**
+- `src/routes/index.tsx` — Send→navigate, agent→navigate, bonus chipy, mount stagger
+- `src/components/phosphor/Sparkline.tsx` — gradient + end-dot
+- `src/styles.css` — `@keyframes shimmer`, `.scanlines` utility (CRT efekt)
+
+**Backend:** Lovable Cloud + Lovable AI Gateway (auto-povolené pri prvom buildu, `LOVABLE_API_KEY` injektne sám). **Žiadne DB tabuľky** v tomto kroku — history v localStorage. DB pridáme keď user povie "chcem to mať uložené v cloude / synced".
+
+**Deps:** všetko už máme (framer-motion, lucide-react, sonner). Bez nových npm balíkov.
+
+---
+
+## 5) Čo z toho user reálne uvidí
+
+1. Otvorí appku → pekná home, animovaný mount, rotujúci placeholder.
+2. Napíše: *"Postav landing pre AI startup s hero, 3 features, CTA"* → tap Send.
+3. Prejde na `/build`, **CODE tab streamuje** zelený phosphor text (CRT vibe), **PREVIEW tab** sa updatuje live ako sa kód generuje.
+4. Po dogenerovaní môže iterovať dole v mini-composeri: *"add pricing section, dark theme"*.
+5. Tlačítkom ⤓ stiahne `.html` súbor — fungujúcu stránku.
+
+To je presne ten "Lovable-like, ale 222 % cool" zážitok. Po schválení implementujem v jednom dávke.
 
