@@ -177,23 +177,21 @@ function TopBar() {
 /* ──────────────── Mode tabs ──────────────── */
 function ModeTabs({ mode, setMode }: { mode: string; setMode: (m: any) => void }) {
   return (
-    <nav className="hairline-bottom -mx-5 px-5 min-h-0">
-      <ul className="flex gap-5 overflow-x-auto pb-2 no-scrollbar">
+    <nav className="hairline-bottom -mx-5 px-3 min-h-0">
+      <ul className="flex justify-between gap-1 pb-2">
         {MODES.map((m) => {
           const active = m.id === mode;
           return (
-            <li key={m.id} className="relative shrink-0">
+            <li key={m.id} className="relative">
               <button
                 onClick={() => setMode(m.id)}
-                className="flex items-center gap-1.5 py-1 font-mono text-[11px] uppercase tracking-[0.18em] transition-colors"
+                className="flex items-center gap-1 py-1 font-mono uppercase tracking-[0.14em] transition-colors whitespace-nowrap"
                 style={{ color: active ? "var(--amber)" : "var(--muted-foreground)" }}
               >
-                <m.icon className="size-3.5" />
-                {m.label}
+                <m.icon className="size-3 hidden min-[380px]:inline-block" />
+                <span style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }}>{m.label}</span>
                 {m.badge && (
-                  <span className="ml-1 rounded-[3px] bg-phosphor/15 px-1 py-px text-[8px] tracking-widest text-phosphor">
-                    {m.badge}
-                  </span>
+                  <span className="ml-1 size-1.5 rounded-full bg-phosphor animate-phosphor" aria-label={m.badge} />
                 )}
               </button>
               {active && (
