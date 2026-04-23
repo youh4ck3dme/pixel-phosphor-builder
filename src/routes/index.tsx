@@ -335,20 +335,20 @@ function Suggestions({ onPick }: { onPick: (s: string) => void }) {
   const [seed, setSeed] = React.useState(0);
   const items = React.useMemo(() => SUGGESTIONS, [seed]);
   return (
-    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar min-h-0">
-      {items.map((s) => (
+    <div className="flex flex-wrap items-center gap-2 min-h-0">
+      {items.slice(0, 2).map((s) => (
         <button
           key={s}
           onClick={() => onPick(s)}
-          className="shrink-0 rounded-[5px] hairline bg-surface px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
+          className="truncate max-w-[60%] rounded-[5px] hairline bg-surface px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
         >
-          {s}
+          {s.length > 22 ? s.slice(0, 22) + "…" : s}
         </button>
       ))}
       <button
         aria-label="Refresh suggestions"
         onClick={() => setSeed((n) => n + 1)}
-        className="grid size-7 place-items-center rounded-[5px] text-muted-foreground transition-colors hover:text-amber"
+        className="ml-auto grid size-7 place-items-center rounded-[5px] text-muted-foreground transition-colors hover:text-amber"
       >
         <RefreshCw className="size-3.5" />
       </button>
