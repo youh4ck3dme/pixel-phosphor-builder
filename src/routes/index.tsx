@@ -22,13 +22,20 @@ export const Route = createFileRoute("/")({
 
 /* ──────────────────────────────────────────────────────────── */
 
-const MODES = [
+type Mode = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+};
+
+const MODES: Mode[] = [
   { id: "ask",      label: "Ask",      icon: Sparkles },
   { id: "research", label: "Research", icon: Search },
   { id: "analyze",  label: "Analyze",  icon: BarChart3 },
   { id: "build",    label: "Build",    icon: Hammer },
   { id: "automate", label: "Automate", icon: Workflow, badge: "NEW" },
-] as const;
+];
 
 const SUGGESTIONS = [
   "Summarize my latest research notes",
