@@ -274,7 +274,7 @@ function Composer({
             aria-label="Hold to record"
             onPointerDown={onMicDown}
             onPointerUp={onMicUp}
-            onPointerLeave={recording ? onMicUp : undefined}
+            onPointerCancel={recording ? onMicUp : undefined}
             className="relative grid size-9 place-items-center rounded-full hairline transition-colors"
             style={{
               borderColor: recording ? "var(--phosphor)" : "var(--border)",
