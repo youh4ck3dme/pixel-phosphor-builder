@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Menu, Bell, Plus, Mic, ArrowUp, RefreshCw, ChevronDown,
@@ -9,6 +9,8 @@ import {
 import { Parallax, Magnetic } from "@/components/phosphor/Parallax";
 import { CountUp } from "@/components/phosphor/CountUp";
 import { Sparkline, ProgressRing } from "@/components/phosphor/Sparkline";
+import { useRotatingPlaceholder } from "@/hooks/useRotatingPlaceholder";
+import { tap } from "@/hooks/useHaptic";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,10 +39,19 @@ const MODES: Mode[] = [
   { id: "automate", label: "Automate", icon: Workflow, badge: "NEW" },
 ];
 
-const SUGGESTIONS = [
-  "Summarize my latest research notes",
-  "Build a landing page for an EV brand",
-  "Analyze Q4 sales spreadsheet",
+const SUGGESTIONS_BY_MODE: Record<string, string[]> = {
+  ask:      ["Explain quantum tunnelling", "Summarize my notes", "Draft a polite email"],
+  research: ["Compare top 3 EV brands", "Find sources on solid-state batteries", "Survey AI agent frameworks"],
+  analyze:  ["Analyze Q4 sales", "Spot trends in CSV", "Cohort retention chart"],
+  build:    ["SaaS landing page", "Pricing table dark mode", "Glassmorphism dashboard"],
+  automate: ["Daily news digest", "Slack standup bot", "Inbox triage rules"],
+};
+
+const PROMPT_PLACEHOLDERS = [
+  "Build a SaaS landing page…",
+  "Generate a pricing table…",
+  "Design a glass dashboard…",
+  "Make a portfolio for a designer…",
 ];
 
 const KPIS = [
@@ -64,6 +75,15 @@ function PhosphorHome() {
   const [prompt, setPrompt] = React.useState("");
   const [recording, setRecording] = React.useState(false);
   const [amp, setAmp] = React.useState(0);
+  const navigate = useNavigate();
+
+  const submitPrompt = React.useCallback((q: string) => {
+    const text = q.trim();
+    if (!text) return;
+    tap(10);
+    setPrompt("");
+    navigate({ to: "/build", search: { q: text } });
+  }, [navigate]);
 
   // Mic with real Web Audio amplitude
   const audioRef = React.useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
