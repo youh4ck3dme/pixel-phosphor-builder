@@ -39,10 +39,14 @@ export const Route = createRootRoute({
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { name: "apple-mobile-web-app-title", content: "H4CK3D" },
       { property: "og:title", content: "H4CK3D — Phosphor Noir AI Builder" },
-      { property: "og:description", content: "Mobile-first AI agent builder with CRT phosphor aesthetic." },
+      { property: "og:description", content: "Mobile-first AI agent builder. AMOLED black, amber CRT, phosphor green LED. Porsche × Apple × Vercel." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "H4CK3D — Phosphor Noir AI Builder" },
+      { name: "twitter:description", content: "Mobile-first AI agent builder. AMOLED black, amber CRT, phosphor green LED. Porsche × Apple × Vercel." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f28a6745-81dc-4b46-a00c-bbb3e94291c8/id-preview-a032e1cd--8e89812c-3366-4a46-98df-c2d8b4f1bc4e.lovable.app-1776958134359.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f28a6745-81dc-4b46-a00c-bbb3e94291c8/id-preview-a032e1cd--8e89812c-3366-4a46-98df-c2d8b4f1bc4e.lovable.app-1776958134359.png" },
     ],
     links: [
       {
