@@ -120,8 +120,9 @@ function PhosphorHome() {
           paddingLeft: "max(env(safe-area-inset-left), clamp(12px, 4vw, 20px))",
           paddingRight: "max(env(safe-area-inset-right), clamp(12px, 4vw, 20px))",
           gridTemplateRows:
-            "auto auto auto auto auto minmax(0, 1fr) minmax(0, 1.2fr) auto",
+            "auto auto auto auto auto minmax(120px, 0.9fr) minmax(140px, 1fr) auto",
           rowGap: "clamp(8px, 1.6vh, 16px)",
+          paddingBottom: 0,
         }}
       >
         <TopBar />
