@@ -441,8 +441,8 @@ function BottomNav() {
   ];
   return (
     <nav className="-mx-5 min-h-0">
-      <div className="hairline-top bg-background/85 px-3 pt-2 backdrop-blur-xl" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}>
-        <ul className="flex items-center justify-between">
+      <div className="hairline-top bg-background/85 px-2 pt-2 backdrop-blur-xl" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
+        <ul className="grid grid-cols-5 place-items-center">
           {items.map((it) => {
             if (it.primary) {
               return (
@@ -450,10 +450,10 @@ function BottomNav() {
                   <Magnetic strength={0.5}>
                     <button
                       aria-label={it.label}
-                      className="grid size-12 place-items-center rounded-[5px] bg-amber text-black"
-                      style={{ boxShadow: "0 0 28px -6px var(--amber)" }}
+                      className="grid size-10 place-items-center rounded-[5px] bg-amber text-black"
+                      style={{ boxShadow: "0 0 18px -6px var(--amber)" }}
                     >
-                      <it.icon className="size-5" />
+                      <it.icon className="size-4" />
                     </button>
                   </Magnetic>
                 </li>
@@ -465,10 +465,10 @@ function BottomNav() {
                 <button
                   onClick={() => setActive(it.id)}
                   aria-label={it.label}
-                  className="flex flex-col items-center gap-1 px-3 py-2"
+                  className="flex flex-col items-center gap-1 px-2 py-1"
                   style={{ color: isActive ? "var(--amber)" : "var(--muted-foreground)" }}
                 >
-                  <it.icon className="size-5" />
+                  <it.icon className="size-[18px]" />
                   <span className="font-mono text-[9px] uppercase tracking-widest">{it.label}</span>
                 </button>
               </li>
