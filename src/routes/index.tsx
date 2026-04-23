@@ -148,7 +148,7 @@ function PhosphorHome() {
 /* ──────────────── Top bar ──────────────── */
 function TopBar() {
   return (
-    <header className="flex items-center justify-between">
+    <header className="flex items-center justify-between min-h-0 pt-1">
       <button aria-label="Menu" className="rounded-[5px] p-2 hover:bg-surface transition-colors">
         <Menu className="size-5 text-muted-foreground" />
       </button>
@@ -176,8 +176,8 @@ function TopBar() {
 /* ──────────────── Mode tabs ──────────────── */
 function ModeTabs({ mode, setMode }: { mode: string; setMode: (m: any) => void }) {
   return (
-    <nav className="hairline-bottom mt-4 -mx-5 px-5">
-      <ul className="flex gap-5 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav className="hairline-bottom -mx-5 px-5 min-h-0">
+      <ul className="flex gap-5 overflow-x-auto pb-2 no-scrollbar">
         {MODES.map((m) => {
           const active = m.id === mode;
           return (
@@ -215,11 +215,11 @@ function Hero() {
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   return (
-    <Parallax intensity={5} className="mt-8">
-      <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+    <Parallax intensity={5} className="min-h-0">
+      <p className="font-mono uppercase tracking-[0.22em] text-muted-foreground" style={{ fontSize: "clamp(10px, 2.6vw, 11px)" }}>
         {greet}, Alex
       </p>
-      <h1 className="font-display mt-2 text-[34px] font-medium leading-[1.05] text-foreground">
+      <h1 className="font-display mt-1 font-medium leading-[1.04] text-foreground" style={{ fontSize: "clamp(26px, 8vw, 38px)" }}>
         How can I help you<br />
         <span className="text-amber" style={{ textShadow: "0 0 24px color-mix(in oklab, var(--amber) 35%, transparent)" }}>today?</span>
       </h1>
@@ -242,7 +242,7 @@ function Composer({
   const [focus, setFocus] = React.useState(false);
   return (
     <div
-      className="mt-6 rounded-[5px] bg-surface transition-all"
+      className="rounded-[5px] bg-surface transition-all min-h-0"
       style={{
         border: `1px solid ${focus ? "var(--amber)" : "var(--border)"}`,
         boxShadow: focus ? "inset 0 0 0 1px color-mix(in oklab, var(--amber) 25%, transparent), 0 0 32px -12px var(--amber)" : "none",
@@ -255,8 +255,9 @@ function Composer({
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           placeholder="Ask, build, automate…"
-          rows={3}
-          className="block w-full resize-none rounded-t-[5px] bg-transparent px-4 pt-4 pb-2 font-mono text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
+          rows={2}
+          className="block w-full resize-none rounded-t-[5px] bg-transparent px-4 pt-3 pb-1 font-mono leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
+          style={{ fontSize: "16px" }}
         />
         {!prompt && focus && (
           <span className="pointer-events-none absolute left-4 top-4 inline-block h-4 w-[2px] translate-x-px bg-amber animate-caret" />
@@ -335,12 +336,12 @@ function Suggestions({ onPick }: { onPick: (s: string) => void }) {
   const [seed, setSeed] = React.useState(0);
   const items = React.useMemo(() => SUGGESTIONS, [seed]);
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2">
+    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar min-h-0">
       {items.map((s) => (
         <button
           key={s}
           onClick={() => onPick(s)}
-          className="rounded-[5px] hairline bg-surface px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
+          className="shrink-0 rounded-[5px] hairline bg-surface px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
         >
           {s}
         </button>
@@ -359,21 +360,21 @@ function Suggestions({ onPick }: { onPick: (s: string) => void }) {
 /* ──────────────── KPI grid ──────────────── */
 function KpiGrid() {
   return (
-    <section className="mt-10">
+    <section className="min-h-0 flex flex-col">
       <SectionLabel>Performance · last 30d</SectionLabel>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2 flex-1 min-h-0">
         {KPIS.map((k) => (
-          <Parallax key={k.label} intensity={3}>
-            <div className="rounded-[5px] hairline bg-surface p-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <Parallax key={k.label} intensity={3} className="min-h-0">
+            <div className="rounded-[5px] hairline bg-surface h-full flex flex-col justify-between" style={{ padding: "clamp(10px, 2.4vw, 14px)" }}>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground truncate">
                 {k.label}
               </div>
-              <div className="mt-2 font-mono text-[26px] font-medium leading-none text-foreground tabular-nums">
+              <div className="font-mono font-medium leading-none text-foreground tabular-nums" style={{ fontSize: "clamp(22px, 6.4vw, 30px)" }}>
                 <CountUp to={k.value} decimals={k.decimals ?? 0} suffix={k.suffix ?? ""} />
               </div>
-              <div className="mt-3 flex items-end justify-between">
+              <div className="flex items-end justify-between">
                 <span className="font-mono text-[10px] text-amber">{k.delta}</span>
-                <Sparkline data={k.spark} width={72} height={20} />
+                <Sparkline data={k.spark} width={64} height={18} />
               </div>
             </div>
           </Parallax>
@@ -386,25 +387,28 @@ function KpiGrid() {
 /* ──────────────── Agents ──────────────── */
 function AgentList() {
   return (
-    <section className="mt-10">
-      <div className="flex items-center justify-between">
+    <section className="min-h-0 flex flex-col">
+      <div className="flex items-center justify-between shrink-0">
         <SectionLabel>Your agents</SectionLabel>
         <button className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-amber">
           View all →
         </button>
       </div>
-      <ul className="mt-3 divide-y divide-[color:var(--border)] hairline rounded-[5px] bg-surface">
+      <ul
+        className="mt-2 divide-y divide-[color:var(--border)] hairline rounded-[5px] bg-surface overflow-y-auto no-scrollbar scroll-fade flex-1 min-h-0"
+        style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
+      >
         {AGENTS.map((a) => (
           <li key={a.name}>
-            <button className="group flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-surface-2">
-              <div className="grid size-10 place-items-center rounded-[5px] hairline bg-background">
+            <button className="group flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-2">
+              <div className="grid size-9 place-items-center rounded-[5px] hairline bg-background shrink-0">
                 <span className="font-display text-[15px] text-amber">{a.name[0]}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-display text-[15px] text-foreground">{a.name}</div>
+                <div className="font-display text-[14px] text-foreground leading-tight">{a.name}</div>
                 <div className="truncate font-mono text-[11px] text-muted-foreground">{a.desc}</div>
               </div>
-              <div className="relative grid size-9 place-items-center">
+              <div className="relative grid size-9 place-items-center shrink-0">
                 <ProgressRing value={a.progress} color={a.color} />
                 <span className="absolute font-mono text-[9px] text-muted-foreground">{a.progress}</span>
               </div>
@@ -435,8 +439,8 @@ function BottomNav() {
     { id: "set",  icon: Settings, label: "Settings" },
   ];
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30">
-      <div className="mx-auto w-full max-w-[480px] hairline-top bg-background/85 px-3 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-xl">
+    <nav className="-mx-5 min-h-0">
+      <div className="hairline-top bg-background/85 px-3 pt-2 backdrop-blur-xl" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}>
         <ul className="flex items-center justify-between">
           {items.map((it) => {
             if (it.primary) {
