@@ -1,56 +1,63 @@
-**Role:** Senior Full-stack Engineer & UX Specialist.  
-**Goal:** Refactor the current home screen into a rock-solid, non-scrolling 100dvh "Native-feel" shell that behaves like a high-end iOS app.
 
-#### 1. Global Viewport & PWA Lock (Root Level)
 
-- **index.html:** Update meta viewport to: width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover.
-- Add PWA meta tags: apple-mobile-web-app-capable="yes", apple-mobile-web-app-status-bar-style="black-translucent".
-- **Global CSS (styles.css):**
-  - Set html, body, #root to height: 100dvh; width: 100vw; overflow: hidden; overscroll-behavior: none;.
-  - Apply touch-action: manipulation to kill double-tap zoom.
-  - Set -webkit-tap-highlight-color: transparentand -webkit-text-size-adjust: 100%.
-  - Implement a global safe-area utility using env(safe-area-inset-...).
+# Oprava chýb na home obrazovke
 
-#### 2. Layout Architecture (CSS Grid Shell)
+Z fotky vidím **8 konkrétnych vizuálnych chýb**. Ku každej píšem presný prompt + opravu.
 
-Rebuild src/routes/index.tsx using a fixed CSS Grid that occupies exactly 100dvh without overflow:
+---
 
-- **Grid Template Rows:**
-  - auto (TopBar - 56px)
-  - auto (Mode Tabs - 44px)
-  - auto (Hero Greeting)
-  - auto (Composer Area)
-  - auto (Suggestions - 36px)
-  - minmax(0, 1fr) (KPI 2x2 Grid - must be flexible but non-overflowing)
-  - minmax(0, 1.2fr) (Agents List - **THE ONLY SCROLLABLE ZONE**)
-  - auto (Bottom Nav - 64px + safe-area-bottom)
+### 1. Mode tabs pretekajú mimo obrazovku
+**Chyba:** `AUTOMATE` je orezaný, vznikol horizontal scroll. Plán zakazoval karusely.
+**Prompt na opravu:** *"Mode tabs musia vždy zmestiť všetkých 5 položiek (Ask/Research/Analyze/Build/Automate) v jednom riadku bez scrollu — použi `justify-between`, skráť labely na fluid `clamp(9px, 2.4vw, 11px)`, ikony skry pri šírke <380px, `NEW` badge presuň ako bodku."*
+**Fix:** `ul` z `flex gap-5 overflow-x-auto` → `flex justify-between gap-1`, fluid font, na <380px `hidden` ikona.
 
-**Constraints:**
+### 2. KPI karty sa prekrývajú vertikálne
+**Chyba:** "SUCCESS RATE 98.2%" preteká cez "YOUR AGENTS" — karty nemajú vynútenú výšku v `1fr` zóne.
+**Prompt na opravu:** *"KPI grid 2×2 musí dodržať svoju gridovú výšku. Pridaj `grid-rows-2`, `min-h-0` na všetky deti, `overflow-hidden` na karty, zmenši padding a font sparku tak aby sa všetko zmestilo do priradenej `1fr` výšky bez pretečenia."*
+**Fix:** `grid-cols-2 grid-rows-2`, každá karta `overflow-hidden min-h-0`, sparkline width `48` height `14`.
 
-- Use min-h-0 on all flex/grid children to prevent content-driven expansion.
-- The **Agents List** must use -webkit-overflow-scrolling: touch with a hidden scrollbar and a top/bottom fade mask.
-- Use clamp() for all typography and spacing to ensure perfect fit on displays from 360px to 430px (e.g., Hero: clamp(28px, 8vw, 40px)).
+### 3. Sparkline visí mimo karty
+**Chyba:** Zelená čiara je nakreslená cez 2 susedné karty — SVG nemá `overflow-hidden` na rodičovi.
+**Prompt na opravu:** *"Pridaj `overflow-hidden` na karty a `preserveAspectRatio='none'` so správnym `viewBox` na SVG sparkline, aby kresba bola lokálna do svojho kontajnera."*
+**Fix:** Sparkline rodič `overflow-hidden`, SVG `block w-full`.
 
-#### 3. Interaction Guards (JS Level)
+### 4. Delta badge prekrýva sekciu nižšie
+**Chyba:** `+0.8%` sa premieta na "YOUR AGENTS" — flex-end footer karty preteká.
+**Prompt na opravu:** *"Karta KPI = vertikálny flex s `justify-between`, footer `mt-auto`, žiadne absolútne pozície, žiadne negatívne marginy."*
+**Fix:** `flex flex-col h-full justify-between`, footer s `shrink-0`.
 
-In __root.tsx or a dedicated hook, implement strict event prevention:
+### 5. Bottom nav má 4 položky namiesto 5
+**Chyba:** Chýba "Settings", veľká dlaždica `+` zaberá 2× šírku a robí dieru uprostred.
+**Prompt na opravu:** *"Bottom nav = 5 rovnomerných slotov (Home, Agents, +, Docs, Settings) v `grid-cols-5`. Centrálny `+` sa zmestí do svojho slotu (40×40), nie 48px, glow obmedz na vlastný box."*
+**Fix:** `<ul>` na `grid grid-cols-5 place-items-center`, `+` button `size-10`, glow zmenšiť.
 
-- Prevent pinch-to-zoom: Intercept gesturestart, gesturechange, gestureend and preventDefault.
-- Prevent Ctrl/Cmd + (+/-/0) and Ctrl + MouseWheel zoom.
-- Ensure all listeners use { passive: false }where necessary to allow preventDefault.
+### 6. Quick suggestions horizontal scroll
+**Chyba:** Texty sú orezané vpravo, scroll-bar carousel — proti dizajnovým princípom.
+**Prompt na opravu:** *"Suggestions: `flex-wrap`, max 2 chips viditeľné, dlhé texty `truncate` na 22 znakov, žiadny `overflow-x-auto`."*
+**Fix:** `flex flex-wrap` + `truncate max-w-[60%]`, refresh ikona vpravo.
 
-#### 4. Design Polish & "Native" Feel
+### 7. Agent list je odrezaný spodným navom
+**Chyba:** Vidno len pol riadku "Analyst" — `1.2fr` zóna nemá garantovanú minimálnu výšku a vrchné sekcie ju zožrali.
+**Prompt na opravu:** *"Zmenši grid-rows: hero `auto` → kompaktnejší, composer pevne `min-content`, KPI grid `minmax(140px, 0.9fr)`, agents `minmax(120px, 1fr)`. Garantuj agents min-height aspoň 2 riadky (96px)."*
+**Fix:** Prepočítané `gridTemplateRows` s konkrétnymi minimami v `px`.
 
-- **Paddings:** Use fluid clamp() instead of fixed px-6.
-- **Bottom Nav:** Position as sticky or part of the grid bottom row. Do NOT use fixed to avoid iOS keyboard/URL bar bugs.
-- **Visuals:** Ensure the "hairline" borders and "full-bleed" background under the status bar.
-- **Micro-interactions:** Ensure zero "white flashes" on tap and immediate active states.
+### 8. Spodný nav sa stráca pod safe-area
+**Chyba:** Nav padding-bottom nezohľadňuje plný `env(safe-area-inset-bottom)` na iOS, viditeľné aj v preview.
+**Prompt na opravu:** *"Bottom nav `padding-bottom: max(env(safe-area-inset-bottom), 12px)` + zaisti že root grid má `paddingBottom: 0` a nav má vlastnú safe-area zónu."*
+**Fix:** Nav už používa `max(env(...), 8px)` → zvýšiť na `12px` a pridať `paddingBottom: 0` na root grid container.
 
-#### 5. Execution Plan
+---
 
-1. Update index.html and styles.css for the foundation.
-2. Inject the JS Guard in the root layout.
-3. Refactor the Home route layout into the specified CSS Grid.
-4. Clean up any legacy margins/paddings that cause overflow.
+## Dodatočné mikro-opravy
+- **Hero**: `<br />` spôsobuje, že na úzkych obrazovkách vznikne 3-riadkový titul. Nahradím inline span s prirodzeným wrapom.
+- **Avatar `A`**: monogram 8px je príliš malý — zväčším na `text-[11px]`.
+- **Mic button**: `onPointerLeave` ruší nahrávanie pri jemnom pohybe — pridám `onPointerCancel` a toleranciu.
 
-**Do not add new dependencies. Focus on CSS-native solutions and pure React/TS logic**
+## Súbory na úpravu
+| Súbor | Zmena |
+|---|---|
+| `src/routes/index.tsx` | grid-template-rows recalc, ModeTabs no-scroll, KpiGrid 2×2 fix, BottomNav 5-grid, Suggestions wrap, Hero wrap |
+| `src/components/phosphor/Sparkline.tsx` | `viewBox` + `preserveAspectRatio` fix |
+
+Žiadne nové dependency, čistý surgical fix.
+
