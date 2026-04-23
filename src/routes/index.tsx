@@ -156,11 +156,12 @@ function PhosphorHome() {
           onMicDown={startMic}
           onMicUp={stopMic}
           mode={mode}
+          onSend={() => submitPrompt(prompt)}
         />
-        <Suggestions onPick={(s) => setPrompt(s)} />
+        <Suggestions mode={mode} onPick={(s) => submitPrompt(s)} />
         <KpiGrid />
-        <AgentList />
-        <BottomNav />
+        <AgentList onPick={(starter) => submitPrompt(starter)} />
+        <BottomNav onNew={() => navigate({ to: "/build", search: {} })} />
       </div>
     </div>
   );
@@ -234,15 +235,25 @@ function Hero() {
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="min-h-0"
+    >
     <Parallax intensity={5} className="min-h-0">
       <p className="font-mono uppercase tracking-[0.22em] text-muted-foreground" style={{ fontSize: "clamp(10px, 2.6vw, 11px)" }}>
         {greet}, Alex
       </p>
-      <h1 className="font-display mt-1 font-medium leading-[1.04] text-foreground" style={{ fontSize: "clamp(26px, 8vw, 38px)" }}>
+      <h1
+        className="font-display mt-1 font-medium text-foreground line-clamp-2"
+        style={{ fontSize: "clamp(22px, 6.4vw, 34px)", lineHeight: 1 }}
+      >
         How can I help you{" "}
         <span className="text-amber" style={{ textShadow: "0 0 24px color-mix(in oklab, var(--amber) 35%, transparent)" }}>today?</span>
       </h1>
     </Parallax>
+    </motion.div>
   );
 }
 
