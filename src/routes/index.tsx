@@ -219,7 +219,7 @@ function Hero() {
         {greet}, Alex
       </p>
       <h1 className="font-display mt-1 font-medium leading-[1.04] text-foreground" style={{ fontSize: "clamp(26px, 8vw, 38px)" }}>
-        How can I help you<br />
+        How can I help you{" "}
         <span className="text-amber" style={{ textShadow: "0 0 24px color-mix(in oklab, var(--amber) 35%, transparent)" }}>today?</span>
       </h1>
     </Parallax>
