@@ -167,7 +167,7 @@ function TopBar() {
           <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-phosphor animate-phosphor" />
         </button>
         <div className="size-8 rounded-full p-[1px]" style={{ background: "var(--amber)" }}>
-          <div className="grid h-full w-full place-items-center rounded-full bg-background font-mono text-xs">A</div>
+          <div className="grid h-full w-full place-items-center rounded-full bg-background font-mono text-[11px]">A</div>
         </div>
       </div>
     </header>
