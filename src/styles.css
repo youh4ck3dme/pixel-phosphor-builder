@@ -177,6 +177,27 @@
   }
 }
 
+/* ── 100dvh native shell lock ── */
+html, body, #root {
+  height: 100dvh;
+  width: 100vw;
+  max-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input, textarea, select {
+  font-size: 16px; /* prevents iOS auto-zoom on focus */
+}
+
 @layer utilities {
   .font-display { font-family: var(--font-display); letter-spacing: -0.04em; }
   .font-mono    { font-family: var(--font-mono); }
@@ -202,6 +223,17 @@
     background-size: 32px 32px;
     mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
   }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+
+  .scroll-fade {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 24px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 24px), transparent 100%);
+  }
+
+  .safe-t { padding-top: env(safe-area-inset-top); }
+  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
 
   @keyframes phosphor-pulse {
     0%, 100% { opacity: 0.6; transform: scale(1); }
