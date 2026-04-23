@@ -359,21 +359,23 @@ function Suggestions({ onPick }: { onPick: (s: string) => void }) {
 /* ──────────────── KPI grid ──────────────── */
 function KpiGrid() {
   return (
-    <section className="min-h-0 flex flex-col">
+    <section className="min-h-0 flex flex-col overflow-hidden">
       <SectionLabel>Performance · last 30d</SectionLabel>
-      <div className="mt-2 grid grid-cols-2 gap-2 flex-1 min-h-0">
+      <div className="mt-2 grid grid-cols-2 grid-rows-2 gap-2 flex-1 min-h-0">
         {KPIS.map((k) => (
-          <Parallax key={k.label} intensity={3} className="min-h-0">
-            <div className="rounded-[5px] hairline bg-surface h-full flex flex-col justify-between" style={{ padding: "clamp(10px, 2.4vw, 14px)" }}>
-              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground truncate">
+          <Parallax key={k.label} intensity={3} className="min-h-0 min-w-0">
+            <div className="rounded-[5px] hairline bg-surface h-full flex flex-col justify-between overflow-hidden min-w-0" style={{ padding: "clamp(8px, 2vw, 12px)" }}>
+              <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground truncate shrink-0">
                 {k.label}
               </div>
-              <div className="font-mono font-medium leading-none text-foreground tabular-nums" style={{ fontSize: "clamp(22px, 6.4vw, 30px)" }}>
+              <div className="font-mono font-medium leading-none text-foreground tabular-nums truncate" style={{ fontSize: "clamp(18px, 5.4vw, 26px)" }}>
                 <CountUp to={k.value} decimals={k.decimals ?? 0} suffix={k.suffix ?? ""} />
               </div>
-              <div className="flex items-end justify-between">
-                <span className="font-mono text-[10px] text-amber">{k.delta}</span>
-                <Sparkline data={k.spark} width={64} height={18} />
+              <div className="flex items-end justify-between gap-1 shrink-0 min-w-0">
+                <span className="font-mono text-[9px] text-amber truncate">{k.delta}</span>
+                <div className="overflow-hidden shrink-0">
+                  <Sparkline data={k.spark} width={48} height={14} />
+                </div>
               </div>
             </div>
           </Parallax>
