@@ -1,26 +1,464 @@
+import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Menu, Bell, Plus, Mic, ArrowUp, RefreshCw, ChevronDown,
+  Home, Grid3x3, BookText, Settings, Search, BarChart3,
+  Hammer, Workflow, Sparkles,
+} from "lucide-react";
+import { Parallax, Magnetic } from "@/components/phosphor/Parallax";
+import { CountUp } from "@/components/phosphor/CountUp";
+import { Sparkline, ProgressRing } from "@/components/phosphor/Sparkline";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "H4CK3D — Phosphor Noir" },
+      { name: "description", content: "Mobile-first AI agent builder. AMOLED black, amber CRT, phosphor green LED." },
+    ],
+  }),
+  component: PhosphorHome,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
+/* ──────────────────────────────────────────────────────────── */
+
+type Mode = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+};
+
+const MODES: Mode[] = [
+  { id: "ask",      label: "Ask",      icon: Sparkles },
+  { id: "research", label: "Research", icon: Search },
+  { id: "analyze",  label: "Analyze",  icon: BarChart3 },
+  { id: "build",    label: "Build",    icon: Hammer },
+  { id: "automate", label: "Automate", icon: Workflow, badge: "NEW" },
+];
+
+const SUGGESTIONS = [
+  "Summarize my latest research notes",
+  "Build a landing page for an EV brand",
+  "Analyze Q4 sales spreadsheet",
+];
+
+const KPIS = [
+  { label: "Tasks completed", value: 1284, delta: "+12%", spark: [4,6,5,8,7,10,9,12,14,13,15,18] },
+  { label: "Hours saved",     value: 96.4, decimals: 1, suffix: "h", delta: "+4.2h", spark: [2,3,3,4,5,5,6,7,8,8,9,10] },
+  { label: "Success rate",    value: 98.2, decimals: 1, suffix: "%", delta: "+0.8%", spark: [90,92,93,94,95,95,96,97,97,98,98,98] },
+  { label: "Connected apps",  value: 14,   delta: "+2",  spark: [6,7,8,8,9,10,11,11,12,13,13,14] },
+];
+
+const AGENTS = [
+  { name: "Researcher", desc: "Gathers sources & synthesizes",  progress: 84, color: "var(--phosphor)" },
+  { name: "Analyst",    desc: "Crunches data, surfaces signal", progress: 62, color: "var(--phosphor)" },
+  { name: "Planner",    desc: "Breaks goals into next actions", progress: 48, color: "var(--amber)" },
+  { name: "Writer",     desc: "Drafts and edits long-form copy",progress: 91, color: "var(--phosphor)" },
+];
+
+/* ──────────────────────────────────────────────────────────── */
+
+function PhosphorHome() {
+  const [mode, setMode] = React.useState<(typeof MODES)[number]["id"]>("research");
+  const [prompt, setPrompt] = React.useState("");
+  const [recording, setRecording] = React.useState(false);
+  const [amp, setAmp] = React.useState(0);
+
+  // Mic with real Web Audio amplitude
+  const audioRef = React.useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
+  const startMic = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new AudioContext();
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        setAmp(Math.min(1, Math.sqrt(sum / data.length) * 3));
+        const raf = requestAnimationFrame(tick);
+        if (audioRef.current) audioRef.current.raf = raf;
+      };
+      tick();
+      audioRef.current = { ctx, stream, raf: 0 };
+      setRecording(true);
+    } catch {
+      // permission denied — silently degrade
+    }
+  };
+  const stopMic = () => {
+    if (audioRef.current) {
+      cancelAnimationFrame(audioRef.current.raf);
+      audioRef.current.stream.getTracks().forEach((t) => t.stop());
+      audioRef.current.ctx.close();
+      audioRef.current = null;
+    }
+    setRecording(false);
+    setAmp(0);
+  };
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="relative min-h-screen bg-background text-foreground overflow-x-hidden">
+      {/* Subtle CRT grid backdrop */}
+      <div className="pointer-events-none absolute inset-0 grid-bg opacity-40" />
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-5 pb-28 pt-4">
+        <TopBar />
+        <ModeTabs mode={mode} setMode={setMode} />
+        <Hero />
+        <Composer
+          prompt={prompt}
+          setPrompt={setPrompt}
+          recording={recording}
+          amp={amp}
+          onMicDown={startMic}
+          onMicUp={stopMic}
+          mode={mode}
+        />
+        <Suggestions onPick={(s) => setPrompt(s)} />
+        <KpiGrid />
+        <AgentList />
+      </div>
+
+      <BottomNav />
     </div>
   );
 }
 
-function Index() {
-  return <PlaceholderIndex />;
+/* ──────────────── Top bar ──────────────── */
+function TopBar() {
+  return (
+    <header className="flex items-center justify-between">
+      <button aria-label="Menu" className="rounded-[5px] p-2 hover:bg-surface transition-colors">
+        <Menu className="size-5 text-muted-foreground" />
+      </button>
+
+      <div className="flex items-center gap-2">
+        <span className="font-display text-2xl font-medium leading-none text-amber" style={{ textShadow: "0 0 12px color-mix(in oklab, var(--amber) 40%, transparent)" }}>
+          H
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">4CK3D</span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button aria-label="Notifications" className="relative rounded-[5px] p-2 hover:bg-surface transition-colors">
+          <Bell className="size-5 text-muted-foreground" />
+          <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-phosphor animate-phosphor" />
+        </button>
+        <div className="size-8 rounded-full p-[1px]" style={{ background: "var(--amber)" }}>
+          <div className="grid h-full w-full place-items-center rounded-full bg-background font-mono text-xs">A</div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ──────────────── Mode tabs ──────────────── */
+function ModeTabs({ mode, setMode }: { mode: string; setMode: (m: any) => void }) {
+  return (
+    <nav className="hairline-bottom mt-4 -mx-5 px-5">
+      <ul className="flex gap-5 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {MODES.map((m) => {
+          const active = m.id === mode;
+          return (
+            <li key={m.id} className="relative shrink-0">
+              <button
+                onClick={() => setMode(m.id)}
+                className="flex items-center gap-1.5 py-1 font-mono text-[11px] uppercase tracking-[0.18em] transition-colors"
+                style={{ color: active ? "var(--amber)" : "var(--muted-foreground)" }}
+              >
+                <m.icon className="size-3.5" />
+                {m.label}
+                {m.badge && (
+                  <span className="ml-1 rounded-[3px] bg-phosphor/15 px-1 py-px text-[8px] tracking-widest text-phosphor">
+                    {m.badge}
+                  </span>
+                )}
+              </button>
+              {active && (
+                <motion.span
+                  layoutId="mode-underline"
+                  className="absolute -bottom-3 left-0 right-0 h-[2px] bg-amber"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/* ──────────────── Hero ──────────────── */
+function Hero() {
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  return (
+    <Parallax intensity={5} className="mt-8">
+      <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+        {greet}, Alex
+      </p>
+      <h1 className="font-display mt-2 text-[34px] font-medium leading-[1.05] text-foreground">
+        How can I help you<br />
+        <span className="text-amber" style={{ textShadow: "0 0 24px color-mix(in oklab, var(--amber) 35%, transparent)" }}>today?</span>
+      </h1>
+    </Parallax>
+  );
+}
+
+/* ──────────────── Composer ──────────────── */
+function Composer({
+  prompt, setPrompt, recording, amp, onMicDown, onMicUp, mode,
+}: {
+  prompt: string;
+  setPrompt: (s: string) => void;
+  recording: boolean;
+  amp: number;
+  onMicDown: () => void;
+  onMicUp: () => void;
+  mode: string;
+}) {
+  const [focus, setFocus] = React.useState(false);
+  return (
+    <div
+      className="mt-6 rounded-[5px] bg-surface transition-all"
+      style={{
+        border: `1px solid ${focus ? "var(--amber)" : "var(--border)"}`,
+        boxShadow: focus ? "inset 0 0 0 1px color-mix(in oklab, var(--amber) 25%, transparent), 0 0 32px -12px var(--amber)" : "none",
+      }}
+    >
+      <div className="relative">
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
+          placeholder="Ask, build, automate…"
+          rows={3}
+          className="block w-full resize-none rounded-t-[5px] bg-transparent px-4 pt-4 pb-2 font-mono text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
+        />
+        {!prompt && focus && (
+          <span className="pointer-events-none absolute left-4 top-4 inline-block h-4 w-[2px] translate-x-px bg-amber animate-caret" />
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+        <IconBtn aria-label="Attach"><Plus className="size-4" /></IconBtn>
+        <Chip>Pro <ChevronDown className="size-3" /></Chip>
+        <Chip>{mode[0].toUpperCase() + mode.slice(1)} <ChevronDown className="size-3" /></Chip>
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Mic — phosphor breathing, scales with real amplitude */}
+          <button
+            aria-label="Hold to record"
+            onPointerDown={onMicDown}
+            onPointerUp={onMicUp}
+            onPointerLeave={recording ? onMicUp : undefined}
+            className="relative grid size-9 place-items-center rounded-full hairline transition-colors"
+            style={{
+              borderColor: recording ? "var(--phosphor)" : "var(--border)",
+              boxShadow: recording
+                ? `0 0 ${12 + amp * 30}px color-mix(in oklab, var(--phosphor) ${30 + amp * 50}%, transparent)`
+                : "none",
+            }}
+          >
+            <Mic className="size-4" style={{ color: recording ? "var(--phosphor)" : "var(--muted-foreground)" }} />
+            {recording && (
+              <span
+                className="pointer-events-none absolute inset-0 rounded-full"
+                style={{
+                  border: "1px solid var(--phosphor)",
+                  transform: `scale(${1 + amp * 0.6})`,
+                  opacity: 0.4 + amp * 0.6,
+                  transition: "transform 60ms linear, opacity 60ms linear",
+                }}
+              />
+            )}
+          </button>
+
+          {/* Send — magnetic amber */}
+          <Magnetic strength={0.4}>
+            <button
+              aria-label="Send"
+              disabled={!prompt.trim()}
+              className="grid size-9 place-items-center rounded-[5px] bg-amber text-black transition-opacity disabled:opacity-30"
+              style={{ boxShadow: prompt.trim() ? "0 0 24px -6px var(--amber)" : "none" }}
+            >
+              <ArrowUp className="size-4" />
+            </button>
+          </Magnetic>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IconBtn(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className="grid size-8 place-items-center rounded-[5px] hairline text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
+    />
+  );
+}
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <button className="inline-flex items-center gap-1 rounded-[5px] hairline px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground">
+      {children}
+    </button>
+  );
+}
+
+/* ──────────────── Suggestions ──────────────── */
+function Suggestions({ onPick }: { onPick: (s: string) => void }) {
+  const [seed, setSeed] = React.useState(0);
+  const items = React.useMemo(() => SUGGESTIONS, [seed]);
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-2">
+      {items.map((s) => (
+        <button
+          key={s}
+          onClick={() => onPick(s)}
+          className="rounded-[5px] hairline bg-surface px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
+        >
+          {s}
+        </button>
+      ))}
+      <button
+        aria-label="Refresh suggestions"
+        onClick={() => setSeed((n) => n + 1)}
+        className="grid size-7 place-items-center rounded-[5px] text-muted-foreground transition-colors hover:text-amber"
+      >
+        <RefreshCw className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/* ──────────────── KPI grid ──────────────── */
+function KpiGrid() {
+  return (
+    <section className="mt-10">
+      <SectionLabel>Performance · last 30d</SectionLabel>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {KPIS.map((k) => (
+          <Parallax key={k.label} intensity={3}>
+            <div className="rounded-[5px] hairline bg-surface p-4">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {k.label}
+              </div>
+              <div className="mt-2 font-mono text-[26px] font-medium leading-none text-foreground tabular-nums">
+                <CountUp to={k.value} decimals={k.decimals ?? 0} suffix={k.suffix ?? ""} />
+              </div>
+              <div className="mt-3 flex items-end justify-between">
+                <span className="font-mono text-[10px] text-amber">{k.delta}</span>
+                <Sparkline data={k.spark} width={72} height={20} />
+              </div>
+            </div>
+          </Parallax>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ──────────────── Agents ──────────────── */
+function AgentList() {
+  return (
+    <section className="mt-10">
+      <div className="flex items-center justify-between">
+        <SectionLabel>Your agents</SectionLabel>
+        <button className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-amber">
+          View all →
+        </button>
+      </div>
+      <ul className="mt-3 divide-y divide-[color:var(--border)] hairline rounded-[5px] bg-surface">
+        {AGENTS.map((a) => (
+          <li key={a.name}>
+            <button className="group flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-surface-2">
+              <div className="grid size-10 place-items-center rounded-[5px] hairline bg-background">
+                <span className="font-display text-[15px] text-amber">{a.name[0]}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-[15px] text-foreground">{a.name}</div>
+                <div className="truncate font-mono text-[11px] text-muted-foreground">{a.desc}</div>
+              </div>
+              <div className="relative grid size-9 place-items-center">
+                <ProgressRing value={a.progress} color={a.color} />
+                <span className="absolute font-mono text-[9px] text-muted-foreground">{a.progress}</span>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+      {children}
+    </h2>
+  );
+}
+
+/* ──────────────── Bottom nav ──────────────── */
+function BottomNav() {
+  const [active, setActive] = React.useState("home");
+  const items = [
+    { id: "home", icon: Home, label: "Home" },
+    { id: "grid", icon: Grid3x3, label: "Agents" },
+    { id: "new",  icon: Plus,  label: "New", primary: true },
+    { id: "docs", icon: BookText, label: "Docs" },
+    { id: "set",  icon: Settings, label: "Settings" },
+  ];
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-30">
+      <div className="mx-auto w-full max-w-[480px] hairline-top bg-background/85 px-3 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-xl">
+        <ul className="flex items-center justify-between">
+          {items.map((it) => {
+            if (it.primary) {
+              return (
+                <li key={it.id}>
+                  <Magnetic strength={0.5}>
+                    <button
+                      aria-label={it.label}
+                      className="grid size-12 place-items-center rounded-[5px] bg-amber text-black"
+                      style={{ boxShadow: "0 0 28px -6px var(--amber)" }}
+                    >
+                      <it.icon className="size-5" />
+                    </button>
+                  </Magnetic>
+                </li>
+              );
+            }
+            const isActive = active === it.id;
+            return (
+              <li key={it.id}>
+                <button
+                  onClick={() => setActive(it.id)}
+                  aria-label={it.label}
+                  className="flex flex-col items-center gap-1 px-3 py-2"
+                  style={{ color: isActive ? "var(--amber)" : "var(--muted-foreground)" }}
+                >
+                  <it.icon className="size-5" />
+                  <span className="font-mono text-[9px] uppercase tracking-widest">{it.label}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </nav>
+  );
 }
