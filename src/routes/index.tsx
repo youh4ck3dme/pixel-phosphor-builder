@@ -259,7 +259,7 @@ function Hero() {
 
 /* ──────────────── Composer ──────────────── */
 function Composer({
-  prompt, setPrompt, recording, amp, onMicDown, onMicUp, mode,
+  prompt, setPrompt, recording, amp, onMicDown, onMicUp, mode, onSend,
 }: {
   prompt: string;
   setPrompt: (s: string) => void;
@@ -268,8 +268,10 @@ function Composer({
   onMicDown: () => void;
   onMicUp: () => void;
   mode: string;
+  onSend: () => void;
 }) {
   const [focus, setFocus] = React.useState(false);
+  const placeholder = useRotatingPlaceholder(PROMPT_PLACEHOLDERS, 3000);
   return (
     <div
       className="rounded-[5px] bg-surface transition-all min-h-0"
@@ -284,7 +286,13 @@ function Composer({
           onChange={(e) => setPrompt(e.target.value)}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
-          placeholder="Ask, build, automate…"
+          placeholder={placeholder}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSend();
+            }
+          }}
           rows={2}
           className="block w-full resize-none rounded-t-[5px] bg-transparent px-4 pt-3 pb-1 font-mono leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
           style={{ fontSize: "16px" }}
@@ -332,6 +340,7 @@ function Composer({
           <Magnetic strength={0.4}>
             <button
               aria-label="Send"
+              onClick={onSend}
               disabled={!prompt.trim()}
               className="grid size-9 place-items-center rounded-[5px] bg-amber text-black transition-opacity disabled:opacity-30"
               style={{ boxShadow: prompt.trim() ? "0 0 24px -6px var(--amber)" : "none" }}
@@ -362,9 +371,13 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 /* ──────────────── Suggestions ──────────────── */
-function Suggestions({ onPick }: { onPick: (s: string) => void }) {
+function Suggestions({ mode, onPick }: { mode: string; onPick: (s: string) => void }) {
   const [seed, setSeed] = React.useState(0);
-  const items = React.useMemo(() => SUGGESTIONS, [seed]);
+  const items = React.useMemo(() => {
+    const list = SUGGESTIONS_BY_MODE[mode] ?? SUGGESTIONS_BY_MODE.build;
+    // light shuffle by seed
+    return [...list].sort(() => (seed * 9301 + 49297) % 2 - 0.5);
+  }, [mode, seed]);
   return (
     <div className="flex flex-wrap items-center gap-2 min-h-0">
       {items.slice(0, 2).map((s) => (
