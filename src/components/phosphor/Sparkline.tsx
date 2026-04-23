@@ -19,22 +19,33 @@ export function Sparkline({
   const points = data
     .map((v, i) => `${i * step},${height - ((v - min) / range) * height}`)
     .join(" ");
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
+  const lastY = height - ((data[data.length - 1] - min) / range) * height;
+  const gradId = React.useMemo(() => `g${Math.random().toString(36).slice(2, 8)}`, []);
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="block overflow-hidden">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="var(--amber)" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="var(--phosphor)" stopOpacity="1" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPoints} fill={`url(#${gradId})`} opacity="0.08" />
       <polyline
         points={points}
         fill="none"
-        stroke={color}
+        stroke={`url(#${gradId})`}
         strokeWidth="1.5"
         strokeLinecap="square"
         strokeLinejoin="miter"
       />
       <circle
-        cx={width}
-        cy={height - ((data[data.length - 1] - min) / range) * height}
-        r="2"
-        fill={color}
+        cx={width - 1}
+        cy={lastY}
+        r="1.8"
+        fill="var(--phosphor)"
+        style={{ filter: "drop-shadow(0 0 3px var(--phosphor))" }}
       />
     </svg>
   );

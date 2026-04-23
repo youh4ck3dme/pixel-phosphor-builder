@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Menu, Bell, Plus, Mic, ArrowUp, RefreshCw, ChevronDown,
@@ -9,6 +9,8 @@ import {
 import { Parallax, Magnetic } from "@/components/phosphor/Parallax";
 import { CountUp } from "@/components/phosphor/CountUp";
 import { Sparkline, ProgressRing } from "@/components/phosphor/Sparkline";
+import { useRotatingPlaceholder } from "@/hooks/useRotatingPlaceholder";
+import { tap } from "@/hooks/useHaptic";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,10 +39,19 @@ const MODES: Mode[] = [
   { id: "automate", label: "Automate", icon: Workflow, badge: "NEW" },
 ];
 
-const SUGGESTIONS = [
-  "Summarize my latest research notes",
-  "Build a landing page for an EV brand",
-  "Analyze Q4 sales spreadsheet",
+const SUGGESTIONS_BY_MODE: Record<string, string[]> = {
+  ask:      ["Explain quantum tunnelling", "Summarize my notes", "Draft a polite email"],
+  research: ["Compare top 3 EV brands", "Find sources on solid-state batteries", "Survey AI agent frameworks"],
+  analyze:  ["Analyze Q4 sales", "Spot trends in CSV", "Cohort retention chart"],
+  build:    ["SaaS landing page", "Pricing table dark mode", "Glassmorphism dashboard"],
+  automate: ["Daily news digest", "Slack standup bot", "Inbox triage rules"],
+};
+
+const PROMPT_PLACEHOLDERS = [
+  "Build a SaaS landing page…",
+  "Generate a pricing table…",
+  "Design a glass dashboard…",
+  "Make a portfolio for a designer…",
 ];
 
 const KPIS = [
@@ -51,10 +62,10 @@ const KPIS = [
 ];
 
 const AGENTS = [
-  { name: "Researcher", desc: "Gathers sources & synthesizes",  progress: 84, color: "var(--phosphor)" },
-  { name: "Analyst",    desc: "Crunches data, surfaces signal", progress: 62, color: "var(--phosphor)" },
-  { name: "Planner",    desc: "Breaks goals into next actions", progress: 48, color: "var(--amber)" },
-  { name: "Writer",     desc: "Drafts and edits long-form copy",progress: 91, color: "var(--phosphor)" },
+  { name: "Researcher", desc: "Gathers sources & synthesizes",  progress: 84, color: "var(--phosphor)", starter: "Research the top 5 EV brands and summarize differentiators" },
+  { name: "Analyst",    desc: "Crunches data, surfaces signal", progress: 62, color: "var(--phosphor)", starter: "Build a dashboard analyzing Q4 sales with charts" },
+  { name: "Planner",    desc: "Breaks goals into next actions", progress: 48, color: "var(--amber)",    starter: "Plan a 7-day product launch with daily milestones" },
+  { name: "Writer",     desc: "Drafts and edits long-form copy",progress: 91, color: "var(--phosphor)", starter: "Write a landing page hero + 3 features for an AI startup" },
 ];
 
 /* ──────────────────────────────────────────────────────────── */
@@ -64,6 +75,15 @@ function PhosphorHome() {
   const [prompt, setPrompt] = React.useState("");
   const [recording, setRecording] = React.useState(false);
   const [amp, setAmp] = React.useState(0);
+  const navigate = useNavigate();
+
+  const submitPrompt = React.useCallback((q: string) => {
+    const text = q.trim();
+    if (!text) return;
+    tap(10);
+    setPrompt("");
+    navigate({ to: "/build", search: { q: text } });
+  }, [navigate]);
 
   // Mic with real Web Audio amplitude
   const audioRef = React.useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
@@ -136,11 +156,12 @@ function PhosphorHome() {
           onMicDown={startMic}
           onMicUp={stopMic}
           mode={mode}
+          onSend={() => submitPrompt(prompt)}
         />
-        <Suggestions onPick={(s) => setPrompt(s)} />
+        <Suggestions mode={mode} onPick={(s) => submitPrompt(s)} />
         <KpiGrid />
-        <AgentList />
-        <BottomNav />
+        <AgentList onPick={(starter) => submitPrompt(starter)} />
+        <BottomNav onNew={() => navigate({ to: "/build", search: {} })} />
       </div>
     </div>
   );
@@ -214,21 +235,31 @@ function Hero() {
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="min-h-0"
+    >
     <Parallax intensity={5} className="min-h-0">
       <p className="font-mono uppercase tracking-[0.22em] text-muted-foreground" style={{ fontSize: "clamp(10px, 2.6vw, 11px)" }}>
         {greet}, Alex
       </p>
-      <h1 className="font-display mt-1 font-medium leading-[1.04] text-foreground" style={{ fontSize: "clamp(26px, 8vw, 38px)" }}>
+      <h1
+        className="font-display mt-1 font-medium text-foreground line-clamp-2"
+        style={{ fontSize: "clamp(22px, 6.4vw, 34px)", lineHeight: 1 }}
+      >
         How can I help you{" "}
         <span className="text-amber" style={{ textShadow: "0 0 24px color-mix(in oklab, var(--amber) 35%, transparent)" }}>today?</span>
       </h1>
     </Parallax>
+    </motion.div>
   );
 }
 
 /* ──────────────── Composer ──────────────── */
 function Composer({
-  prompt, setPrompt, recording, amp, onMicDown, onMicUp, mode,
+  prompt, setPrompt, recording, amp, onMicDown, onMicUp, mode, onSend,
 }: {
   prompt: string;
   setPrompt: (s: string) => void;
@@ -237,8 +268,10 @@ function Composer({
   onMicDown: () => void;
   onMicUp: () => void;
   mode: string;
+  onSend: () => void;
 }) {
   const [focus, setFocus] = React.useState(false);
+  const placeholder = useRotatingPlaceholder(PROMPT_PLACEHOLDERS, 3000);
   return (
     <div
       className="rounded-[5px] bg-surface transition-all min-h-0"
@@ -253,7 +286,13 @@ function Composer({
           onChange={(e) => setPrompt(e.target.value)}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
-          placeholder="Ask, build, automate…"
+          placeholder={placeholder}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSend();
+            }
+          }}
           rows={2}
           className="block w-full resize-none rounded-t-[5px] bg-transparent px-4 pt-3 pb-1 font-mono leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
           style={{ fontSize: "16px" }}
@@ -301,6 +340,7 @@ function Composer({
           <Magnetic strength={0.4}>
             <button
               aria-label="Send"
+              onClick={onSend}
               disabled={!prompt.trim()}
               className="grid size-9 place-items-center rounded-[5px] bg-amber text-black transition-opacity disabled:opacity-30"
               style={{ boxShadow: prompt.trim() ? "0 0 24px -6px var(--amber)" : "none" }}
@@ -331,9 +371,13 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 /* ──────────────── Suggestions ──────────────── */
-function Suggestions({ onPick }: { onPick: (s: string) => void }) {
+function Suggestions({ mode, onPick }: { mode: string; onPick: (s: string) => void }) {
   const [seed, setSeed] = React.useState(0);
-  const items = React.useMemo(() => SUGGESTIONS, [seed]);
+  const items = React.useMemo(() => {
+    const list = SUGGESTIONS_BY_MODE[mode] ?? SUGGESTIONS_BY_MODE.build;
+    // light shuffle by seed
+    return [...list].sort(() => (seed * 9301 + 49297) % 2 - 0.5);
+  }, [mode, seed]);
   return (
     <div className="flex flex-wrap items-center gap-2 min-h-0">
       {items.slice(0, 2).map((s) => (
@@ -386,7 +430,7 @@ function KpiGrid() {
 }
 
 /* ──────────────── Agents ──────────────── */
-function AgentList() {
+function AgentList({ onPick }: { onPick: (starter: string) => void }) {
   return (
     <section className="min-h-0 flex flex-col">
       <div className="flex items-center justify-between shrink-0">
@@ -401,7 +445,10 @@ function AgentList() {
       >
         {AGENTS.map((a) => (
           <li key={a.name}>
-            <button className="group flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-2">
+            <button
+              onClick={() => onPick(a.starter)}
+              className="group flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-2"
+            >
               <div className="grid size-9 place-items-center rounded-[5px] hairline bg-background shrink-0">
                 <span className="font-display text-[15px] text-amber">{a.name[0]}</span>
               </div>
@@ -430,7 +477,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /* ──────────────── Bottom nav ──────────────── */
-function BottomNav() {
+function BottomNav({ onNew }: { onNew: () => void }) {
   const [active, setActive] = React.useState("home");
   const items = [
     { id: "home", icon: Home, label: "Home" },
@@ -450,6 +497,7 @@ function BottomNav() {
                   <Magnetic strength={0.5}>
                     <button
                       aria-label={it.label}
+                      onClick={() => { tap(12); onNew(); }}
                       className="grid size-10 place-items-center rounded-[5px] bg-amber text-black"
                       style={{ boxShadow: "0 0 18px -6px var(--amber)" }}
                     >
