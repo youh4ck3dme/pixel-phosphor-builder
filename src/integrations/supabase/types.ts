@@ -14,16 +14,153 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      builds: {
+        Row: {
+          created_at: string
+          html: string
+          id: string
+          model: string
+          owner_id: string
+          parent_build_id: string | null
+          project_id: string
+          prompt: string
+          tokens_in: number | null
+          tokens_out: number | null
+        }
+        Insert: {
+          created_at?: string
+          html?: string
+          id?: string
+          model?: string
+          owner_id: string
+          parent_build_id?: string | null
+          project_id: string
+          prompt: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Update: {
+          created_at?: string
+          html?: string
+          id?: string
+          model?: string
+          owner_id?: string
+          parent_build_id?: string | null
+          project_id?: string
+          prompt?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builds_parent_build_id_fkey"
+            columns: ["parent_build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builds_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          slug: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          slug: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          slug?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +287,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
