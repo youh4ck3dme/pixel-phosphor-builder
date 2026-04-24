@@ -80,6 +80,10 @@ function BuildRoute() {
   async function run(userPrompt: string, prevHtml: string) {
     if (!userPrompt.trim()) return;
     setStreaming(true);
+    setPhase("requesting");
+    setBytes(0);
+    setElapsedMs(0);
+    startTimeRef.current = Date.now();
     setCode("");
     setTitle(userPrompt.slice(0, 40));
     setTab("code");
@@ -104,6 +108,7 @@ function BuildRoute() {
           /* ignore */
         }
         toast.error(msg);
+        setPhase("error");
         setStreaming(false);
         return;
       }
@@ -119,14 +124,18 @@ function BuildRoute() {
         const chunk = decoder.decode(value, { stream: true });
         acc += chunk;
         setCode(acc);
+        setBytes(acc.length);
+        setPhase((p) => (p === "requesting" ? "streaming" : p));
         if (!switched && acc.length > 400) {
           switched = true;
           setTab("preview");
+          setPhase("rendering");
         }
       }
       // strip stray markdown fences if model misbehaved
       const cleaned = acc.replace(/^```html\s*/i, "").replace(/```\s*$/i, "").trim();
       setCode(cleaned);
+      setBytes(cleaned.length);
       const id = buildId;
       const build: Build = {
         id,
@@ -137,11 +146,16 @@ function BuildRoute() {
       };
       saveBuild(build);
       navigate({ to: "/build", search: { id }, replace: true });
+      setElapsedMs(Date.now() - startTimeRef.current);
+      setPhase("done");
       toast.success("Build complete");
       tap(12);
     } catch (e: any) {
       if (e?.name !== "AbortError") {
         toast.error(e?.message ?? "Generation failed");
+        setPhase("error");
+      } else {
+        setPhase("idle");
       }
     } finally {
       setStreaming(false);
