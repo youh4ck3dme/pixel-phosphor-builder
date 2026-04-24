@@ -8,6 +8,8 @@ import { CodePane } from "@/components/phosphor/CodePane";
 import { StreamProgress, type StreamPhase } from "@/components/phosphor/StreamProgress";
 import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/lib/storage";
 import { tap } from "@/hooks/useHaptic";
+import { supabase } from "@/integrations/supabase/client";
+import { saveCloudBuild, getBuildById } from "@/lib/builds.cloud";
 
 type Search = { q?: string; id?: string };
 
@@ -40,6 +42,9 @@ function BuildRoute() {
   const [model, setModelState] = React.useState<"flash" | "pro">("flash");
   const [buildId, setBuildId] = React.useState<string>(() => search.id ?? newId());
   const [title, setTitle] = React.useState("Untitled build");
+  const [projectId, setProjectId] = React.useState<string | null>(null);
+  const [parentBuildId, setParentBuildId] = React.useState<string | null>(null);
+  const [authed, setAuthed] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
   const startedRef = React.useRef(false);
 
@@ -56,15 +61,42 @@ function BuildRoute() {
     setModelState(getModel());
   }, []);
 
-  // Hydrate from storage if id given
+  // Track auth
   React.useEffect(() => {
-    if (search.id) {
-      const b = getBuild(search.id);
-      if (b) {
-        setCode(b.html);
-        setTitle(b.prompt.slice(0, 40) || "Untitled build");
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthed(!!session);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => setAuthed(!!session));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Hydrate from cloud or localStorage if id given
+  React.useEffect(() => {
+    if (!search.id) return;
+    let cancelled = false;
+    (async () => {
+      // Try cloud first (UUID-shaped) — fall back to localStorage
+      try {
+        const b = await getBuildById(search.id!);
+        if (!cancelled && b) {
+          setCode(b.html);
+          setTitle(b.prompt.slice(0, 40) || "Untitled build");
+          setProjectId(b.project_id);
+          setParentBuildId(b.id);
+          return;
+        }
+      } catch {
+        /* ignore */
       }
-    }
+      const local = getBuild(search.id!);
+      if (!cancelled && local) {
+        setCode(local.html);
+        setTitle(local.prompt.slice(0, 40) || "Untitled build");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [search.id]);
 
   // Auto-run if ?q= passed and we haven't started yet
@@ -136,16 +168,44 @@ function BuildRoute() {
       const cleaned = acc.replace(/^```html\s*/i, "").replace(/```\s*$/i, "").trim();
       setCode(cleaned);
       setBytes(cleaned.length);
-      const id = buildId;
-      const build: Build = {
-        id,
-        prompt: userPrompt,
-        html: cleaned,
-        model,
-        createdAt: Date.now(),
-      };
-      saveBuild(build);
-      navigate({ to: "/build", search: { id }, replace: true });
+
+      // Persist: cloud if authed, otherwise localStorage
+      let savedId = buildId;
+      if (authed) {
+        try {
+          const { project, build } = await saveCloudBuild({
+            projectId,
+            prompt: userPrompt,
+            html: cleaned,
+            model,
+            parentBuildId,
+          });
+          setProjectId(project.id);
+          setParentBuildId(build.id);
+          savedId = build.id;
+        } catch (err) {
+          // Fall back to local
+          const localBuild: Build = {
+            id: buildId,
+            prompt: userPrompt,
+            html: cleaned,
+            model,
+            createdAt: Date.now(),
+          };
+          saveBuild(localBuild);
+          toast.error("Saved locally only — cloud sync failed");
+        }
+      } else {
+        const localBuild: Build = {
+          id: buildId,
+          prompt: userPrompt,
+          html: cleaned,
+          model,
+          createdAt: Date.now(),
+        };
+        saveBuild(localBuild);
+      }
+      navigate({ to: "/build", search: { id: savedId }, replace: true });
       setElapsedMs(Date.now() - startTimeRef.current);
       setPhase("done");
       toast.success("Build complete");
