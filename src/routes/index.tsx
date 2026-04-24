@@ -11,6 +11,10 @@ import { CountUp } from "@/components/phosphor/CountUp";
 import { Sparkline, ProgressRing } from "@/components/phosphor/Sparkline";
 import { useRotatingPlaceholder } from "@/hooks/useRotatingPlaceholder";
 import { tap } from "@/hooks/useHaptic";
+import { supabase } from "@/integrations/supabase/client";
+import { migrateLocalBuildsIfNeeded } from "@/lib/builds.cloud";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -76,6 +80,32 @@ function PhosphorHome() {
   const [recording, setRecording] = React.useState(false);
   const [amp, setAmp] = React.useState(0);
   const navigate = useNavigate();
+  const [authed, setAuthed] = React.useState(false);
+  const [initial, setInitial] = React.useState("A");
+
+  // Track auth + run one-time local→cloud migration on first authed mount
+  React.useEffect(() => {
+    let migrated = false;
+    const apply = async (session: import("@supabase/supabase-js").Session | null) => {
+      setAuthed(!!session);
+      const name = (session?.user?.user_metadata as Record<string, unknown> | undefined)?.display_name as string | undefined
+        ?? session?.user?.email
+        ?? "A";
+      setInitial(name.charAt(0).toUpperCase());
+      if (session && !migrated) {
+        migrated = true;
+        try {
+          const n = await migrateLocalBuildsIfNeeded();
+          if (n > 0) toast.success(`Synced ${n} local build${n === 1 ? "" : "s"} to cloud`);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => { void apply(session); });
+    supabase.auth.getSession().then(({ data: { session } }) => { void apply(session); });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const submitPrompt = React.useCallback((q: string) => {
     const text = q.trim();
@@ -130,6 +160,7 @@ function PhosphorHome() {
       className="relative bg-background text-foreground overflow-hidden"
       style={{ height: "100dvh", width: "100vw" }}
     >
+      <Toaster theme="dark" position="top-center" />
       {/* Subtle CRT grid backdrop */}
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-40" />
 
@@ -145,7 +176,7 @@ function PhosphorHome() {
           paddingBottom: 0,
         }}
       >
-        <TopBar />
+        <TopBar authed={authed} initial={initial} onAvatar={() => navigate({ to: authed ? "/projects" : "/auth" })} />
         <ModeTabs mode={mode} setMode={setMode} />
         <Hero />
         <Composer
@@ -161,14 +192,18 @@ function PhosphorHome() {
         <Suggestions mode={mode} onPick={(s) => submitPrompt(s)} />
         <KpiGrid />
         <AgentList onPick={(starter) => submitPrompt(starter)} />
-        <BottomNav onNew={() => navigate({ to: "/build", search: {} })} />
+        <BottomNav
+          onNew={() => navigate({ to: "/build", search: {} })}
+          onProjects={() => navigate({ to: "/projects" })}
+          onAuth={() => navigate({ to: authed ? "/projects" : "/auth" })}
+        />
       </div>
     </div>
   );
 }
 
 /* ──────────────── Top bar ──────────────── */
-function TopBar() {
+function TopBar({ authed, initial, onAvatar }: { authed: boolean; initial: string; onAvatar: () => void }) {
   return (
     <header className="flex items-center justify-between min-h-0 pt-1">
       <button aria-label="Menu" className="rounded-[5px] p-2 hover:bg-surface transition-colors">
@@ -187,9 +222,16 @@ function TopBar() {
           <Bell className="size-5 text-muted-foreground" />
           <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-phosphor animate-phosphor" />
         </button>
-        <div className="size-8 rounded-full p-[1px]" style={{ background: "var(--amber)" }}>
-          <div className="grid h-full w-full place-items-center rounded-full bg-background font-mono text-[11px]">A</div>
-        </div>
+        <button
+          onClick={() => { tap(); onAvatar(); }}
+          aria-label={authed ? "Projects" : "Sign in"}
+          className="size-8 rounded-full p-[1px]"
+          style={{ background: authed ? "var(--phosphor)" : "var(--amber)" }}
+        >
+          <div className="grid h-full w-full place-items-center rounded-full bg-background font-mono text-[11px]">
+            {authed ? initial : "·"}
+          </div>
+        </button>
       </div>
     </header>
   );
@@ -477,14 +519,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /* ──────────────── Bottom nav ──────────────── */
-function BottomNav({ onNew }: { onNew: () => void }) {
+function BottomNav({ onNew, onProjects, onAuth }: { onNew: () => void; onProjects: () => void; onAuth: () => void }) {
   const [active, setActive] = React.useState("home");
-  const items = [
+  const items: Array<{ id: string; icon: React.ComponentType<{ className?: string }>; label: string; primary?: boolean; onClick?: () => void }> = [
     { id: "home", icon: Home, label: "Home" },
-    { id: "grid", icon: Grid3x3, label: "Agents" },
+    { id: "grid", icon: Grid3x3, label: "Projects", onClick: onProjects },
     { id: "new",  icon: Plus,  label: "New", primary: true },
     { id: "docs", icon: BookText, label: "Docs" },
-    { id: "set",  icon: Settings, label: "Settings" },
+    { id: "set",  icon: Settings, label: "Account", onClick: onAuth },
   ];
   return (
     <nav className="-mx-5 min-h-0">
@@ -511,7 +553,7 @@ function BottomNav({ onNew }: { onNew: () => void }) {
             return (
               <li key={it.id}>
                 <button
-                  onClick={() => setActive(it.id)}
+                  onClick={() => { setActive(it.id); tap(); it.onClick?.(); }}
                   aria-label={it.label}
                   className="flex flex-col items-center gap-1 px-2 py-1"
                   style={{ color: isActive ? "var(--amber)" : "var(--muted-foreground)" }}
