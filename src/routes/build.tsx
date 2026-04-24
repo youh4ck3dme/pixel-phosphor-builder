@@ -223,7 +223,7 @@ function BuildRoute() {
           paddingTop: "env(safe-area-inset-top)",
           paddingLeft: "max(env(safe-area-inset-left), 0px)",
           paddingRight: "max(env(safe-area-inset-right), 0px)",
-          gridTemplateRows: "auto auto 1fr auto",
+          gridTemplateRows: "auto auto auto 1fr auto",
           rowGap: 0,
         }}
       >
