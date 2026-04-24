@@ -291,6 +291,9 @@ function BuildRoute() {
           </div>
         </div>
 
+        {/* Stream progress */}
+        <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
+
         {/* Stage */}
         <main className="relative min-h-0 overflow-hidden">
           {tab === "preview" ? (
