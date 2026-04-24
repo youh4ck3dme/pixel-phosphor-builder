@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { useHaptic } from "@/hooks/useHaptic";
+import { tap as haptic } from "@/hooks/useHaptic";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -21,7 +21,7 @@ type Mode = "signin" | "signup" | "forgot";
 
 function AuthPage() {
   const navigate = useNavigate();
-  const tap = useHaptic();
+  const tap = () => haptic();
   const [mode, setMode] = React.useState<Mode>("signin");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
