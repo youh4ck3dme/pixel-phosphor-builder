@@ -192,7 +192,11 @@ function PhosphorHome() {
         <Suggestions mode={mode} onPick={(s) => submitPrompt(s)} />
         <KpiGrid />
         <AgentList onPick={(starter) => submitPrompt(starter)} />
-        <BottomNav onNew={() => navigate({ to: "/build", search: {} })} />
+        <BottomNav
+          onNew={() => navigate({ to: "/build", search: {} })}
+          onProjects={() => navigate({ to: "/projects" })}
+          onAuth={() => navigate({ to: authed ? "/projects" : "/auth" })}
+        />
       </div>
     </div>
   );
@@ -515,14 +519,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /* ──────────────── Bottom nav ──────────────── */
-function BottomNav({ onNew }: { onNew: () => void }) {
+function BottomNav({ onNew, onProjects, onAuth }: { onNew: () => void; onProjects: () => void; onAuth: () => void }) {
   const [active, setActive] = React.useState("home");
-  const items = [
+  const items: Array<{ id: string; icon: React.ComponentType<{ className?: string }>; label: string; primary?: boolean; onClick?: () => void }> = [
     { id: "home", icon: Home, label: "Home" },
-    { id: "grid", icon: Grid3x3, label: "Agents" },
+    { id: "grid", icon: Grid3x3, label: "Projects", onClick: onProjects },
     { id: "new",  icon: Plus,  label: "New", primary: true },
     { id: "docs", icon: BookText, label: "Docs" },
-    { id: "set",  icon: Settings, label: "Settings" },
+    { id: "set",  icon: Settings, label: "Account", onClick: onAuth },
   ];
   return (
     <nav className="-mx-5 min-h-0">
@@ -549,7 +553,7 @@ function BottomNav({ onNew }: { onNew: () => void }) {
             return (
               <li key={it.id}>
                 <button
-                  onClick={() => setActive(it.id)}
+                  onClick={() => { setActive(it.id); tap(); it.onClick?.(); }}
                   aria-label={it.label}
                   className="flex flex-col items-center gap-1 px-2 py-1"
                   style={{ color: isActive ? "var(--amber)" : "var(--muted-foreground)" }}
