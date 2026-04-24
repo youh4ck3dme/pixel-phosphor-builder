@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { PreviewFrame } from "@/components/phosphor/PreviewFrame";
 import { CodePane } from "@/components/phosphor/CodePane";
+import { StreamProgress, type StreamPhase } from "@/components/phosphor/StreamProgress";
 import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/lib/storage";
 import { tap } from "@/hooks/useHaptic";
 
@@ -31,12 +32,25 @@ function BuildRoute() {
   const [tab, setTab] = React.useState<"preview" | "code">("preview");
   const [code, setCode] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
+  const [phase, setPhase] = React.useState<StreamPhase>("idle");
+  const [bytes, setBytes] = React.useState(0);
+  const [elapsedMs, setElapsedMs] = React.useState(0);
+  const startTimeRef = React.useRef<number>(0);
   const [prompt, setPrompt] = React.useState("");
   const [model, setModelState] = React.useState<"flash" | "pro">("flash");
   const [buildId, setBuildId] = React.useState<string>(() => search.id ?? newId());
   const [title, setTitle] = React.useState("Untitled build");
   const abortRef = React.useRef<AbortController | null>(null);
   const startedRef = React.useRef(false);
+
+  // Tick elapsed time while streaming
+  React.useEffect(() => {
+    if (phase === "idle" || phase === "done" || phase === "error") return;
+    const id = window.setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [phase]);
 
   React.useEffect(() => {
     setModelState(getModel());
