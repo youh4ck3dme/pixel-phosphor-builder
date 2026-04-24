@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { PreviewFrame } from "@/components/phosphor/PreviewFrame";
 import { CodePane } from "@/components/phosphor/CodePane";
+import { StreamProgress, type StreamPhase } from "@/components/phosphor/StreamProgress";
 import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/lib/storage";
 import { tap } from "@/hooks/useHaptic";
 
@@ -31,12 +32,25 @@ function BuildRoute() {
   const [tab, setTab] = React.useState<"preview" | "code">("preview");
   const [code, setCode] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
+  const [phase, setPhase] = React.useState<StreamPhase>("idle");
+  const [bytes, setBytes] = React.useState(0);
+  const [elapsedMs, setElapsedMs] = React.useState(0);
+  const startTimeRef = React.useRef<number>(0);
   const [prompt, setPrompt] = React.useState("");
   const [model, setModelState] = React.useState<"flash" | "pro">("flash");
   const [buildId, setBuildId] = React.useState<string>(() => search.id ?? newId());
   const [title, setTitle] = React.useState("Untitled build");
   const abortRef = React.useRef<AbortController | null>(null);
   const startedRef = React.useRef(false);
+
+  // Tick elapsed time while streaming
+  React.useEffect(() => {
+    if (phase === "idle" || phase === "done" || phase === "error") return;
+    const id = window.setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [phase]);
 
   React.useEffect(() => {
     setModelState(getModel());
@@ -66,6 +80,10 @@ function BuildRoute() {
   async function run(userPrompt: string, prevHtml: string) {
     if (!userPrompt.trim()) return;
     setStreaming(true);
+    setPhase("requesting");
+    setBytes(0);
+    setElapsedMs(0);
+    startTimeRef.current = Date.now();
     setCode("");
     setTitle(userPrompt.slice(0, 40));
     setTab("code");
@@ -90,6 +108,7 @@ function BuildRoute() {
           /* ignore */
         }
         toast.error(msg);
+        setPhase("error");
         setStreaming(false);
         return;
       }
@@ -105,14 +124,18 @@ function BuildRoute() {
         const chunk = decoder.decode(value, { stream: true });
         acc += chunk;
         setCode(acc);
+        setBytes(acc.length);
+        setPhase((p) => (p === "requesting" ? "streaming" : p));
         if (!switched && acc.length > 400) {
           switched = true;
           setTab("preview");
+          setPhase("rendering");
         }
       }
       // strip stray markdown fences if model misbehaved
       const cleaned = acc.replace(/^```html\s*/i, "").replace(/```\s*$/i, "").trim();
       setCode(cleaned);
+      setBytes(cleaned.length);
       const id = buildId;
       const build: Build = {
         id,
@@ -123,11 +146,16 @@ function BuildRoute() {
       };
       saveBuild(build);
       navigate({ to: "/build", search: { id }, replace: true });
+      setElapsedMs(Date.now() - startTimeRef.current);
+      setPhase("done");
       toast.success("Build complete");
       tap(12);
     } catch (e: any) {
       if (e?.name !== "AbortError") {
         toast.error(e?.message ?? "Generation failed");
+        setPhase("error");
+      } else {
+        setPhase("idle");
       }
     } finally {
       setStreaming(false);
@@ -195,7 +223,7 @@ function BuildRoute() {
           paddingTop: "env(safe-area-inset-top)",
           paddingLeft: "max(env(safe-area-inset-left), 0px)",
           paddingRight: "max(env(safe-area-inset-right), 0px)",
-          gridTemplateRows: "auto auto 1fr auto",
+          gridTemplateRows: "auto auto auto 1fr auto",
           rowGap: 0,
         }}
       >
@@ -262,6 +290,9 @@ function BuildRoute() {
             </button>
           </div>
         </div>
+
+        {/* Stream progress */}
+        <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
 
         {/* Stage */}
         <main className="relative min-h-0 overflow-hidden">
