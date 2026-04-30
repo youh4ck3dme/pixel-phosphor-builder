@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { ArrowLeft, Download, RotateCw, Copy, ArrowUp, Code2, Eye, ChevronDown } from "lucide-react";
+import { ArrowLeft, Download, RotateCw, Copy, ArrowUp, Code2, Eye, ChevronDown, Star, GitBranch } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { PreviewFrame } from "@/components/phosphor/PreviewFrame";
@@ -10,6 +10,7 @@ import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/li
 import { tap } from "@/hooks/useHaptic";
 import { supabase } from "@/integrations/supabase/client";
 import { saveCloudBuild, getBuildById } from "@/lib/builds.cloud";
+import { createSnapshot } from "@/lib/snapshots";
 
 type Search = { q?: string; id?: string };
 
@@ -327,6 +328,39 @@ function BuildRoute() {
             >
               <Download className="size-4" />
             </button>
+            <button
+              onClick={async () => {
+                if (!projectId || !parentBuildId) {
+                  toast.message("Save a build first");
+                  return;
+                }
+                const label = window.prompt("Snapshot label", title.slice(0, 40));
+                if (!label) return;
+                try {
+                  await createSnapshot({ buildId: parentBuildId, projectId, label });
+                  toast.success("Snapshot saved");
+                  tap();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Snapshot failed");
+                }
+              }}
+              disabled={!parentBuildId || !projectId}
+              aria-label="Snapshot"
+              className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
+            >
+              <Star className="size-4" />
+            </button>
+            {projectId && (
+              <Link
+                to="/projects/$projectId"
+                params={{ projectId }}
+                aria-label="Tree"
+                onClick={() => tap()}
+                className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber"
+              >
+                <GitBranch className="size-4" />
+              </Link>
+            )}
           </div>
         </header>
 
