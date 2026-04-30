@@ -21,7 +21,8 @@ export function Sparkline({
     .join(" ");
   const areaPoints = `0,${height} ${points} ${width},${height}`;
   const lastY = height - ((data[data.length - 1] - min) / range) * height;
-  const gradId = React.useMemo(() => `g${Math.random().toString(36).slice(2, 8)}`, []);
+  const reactId = React.useId();
+  const gradId = `g${reactId.replace(/[:]/g, "")}`;
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="block overflow-hidden">
