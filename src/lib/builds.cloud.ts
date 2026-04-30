@@ -124,6 +124,48 @@ export async function renameProject(id: string, name: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function setProjectVisibility(
+  id: string,
+  visibility: "private" | "unlisted" | "public",
+): Promise<void> {
+  const { error } = await supabase.from("projects").update({ visibility }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function getProjectBySlug(slug: string): Promise<CloudProject | null> {
+  const { data, error } = await supabase
+    .from("projects")
+    .select("id, name, slug, visibility, updated_at, created_at")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as CloudProject | null) ?? null;
+}
+
+export async function getLatestBuildForProject(projectId: string): Promise<CloudBuild | null> {
+  const { data, error } = await supabase
+    .from("builds")
+    .select("id, project_id, prompt, html, model, parent_build_id, created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as CloudBuild | null) ?? null;
+}
+
+/** Duplicate a build (and its prompt+html) into the current user's account as a new project. */
+export async function remixBuild(sourceBuildId: string): Promise<{ project: CloudProject; build: CloudBuild }> {
+  const src = await getBuildById(sourceBuildId);
+  if (!src) throw new Error("Build not found");
+  return saveCloudBuild({
+    projectId: null,
+    prompt: `Remix: ${src.prompt}`,
+    html: src.html,
+    model: src.model,
+  });
+}
+
 /** One-time migration: copy localStorage builds into the cloud as separate projects. */
 const MIGRATED_KEY = "h4ckd:migrated_v1";
 const LEGACY_KEY = "h4ckd:builds";
