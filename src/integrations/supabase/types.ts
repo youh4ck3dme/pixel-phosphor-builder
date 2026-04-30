@@ -125,6 +125,51 @@ export type Database = {
         }
         Relationships: []
       }
+      snapshots: {
+        Row: {
+          build_id: string
+          created_at: string
+          id: string
+          label: string
+          note: string | null
+          owner_id: string
+          project_id: string
+        }
+        Insert: {
+          build_id: string
+          created_at?: string
+          id?: string
+          label: string
+          note?: string | null
+          owner_id: string
+          project_id: string
+        }
+        Update: {
+          build_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          note?: string | null
+          owner_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snapshots_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "snapshots_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
