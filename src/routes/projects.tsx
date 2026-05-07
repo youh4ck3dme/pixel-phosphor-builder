@@ -106,8 +106,25 @@ function ProjectsPage() {
 
       <div className="flex-1 mx-auto w-full max-w-[640px] px-3 py-4">
         {loading && (
-          <div className="grid place-items-center py-20">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          <div aria-busy="true" aria-live="polite">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3 inline-flex items-center gap-2">
+              <Loader2 className="size-3 animate-spin" /> Loading your projects…
+            </div>
+            <ul className="grid gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li
+                  key={i}
+                  className="hairline rounded-[5px] bg-surface p-3 flex items-center gap-3"
+                >
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-4 w-1/2 rounded-[3px] bg-foreground/10 animate-pulse" />
+                    <div className="h-3 w-3/4 rounded-[3px] bg-foreground/5 animate-pulse" />
+                    <div className="h-2.5 w-1/3 rounded-[3px] bg-foreground/5 animate-pulse" />
+                  </div>
+                  <div className="size-9 rounded-[5px] hairline" />
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
