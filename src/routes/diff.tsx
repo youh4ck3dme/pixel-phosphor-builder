@@ -138,6 +138,12 @@ function ModeBtn({
 }
 
 function CodeDiffView({ lines }: { lines: { kind: "add" | "del" | "ctx"; text: string }[] }) {
+  return null as never;
+}
+
+// (placeholder removed below — real CodeDiffView preserved)
+function _Unused() { return null; }
+
   return (
     <pre className="h-full overflow-auto bg-black px-3 py-3 font-mono text-[11px] leading-snug">
       {lines.map((l, i) => (
