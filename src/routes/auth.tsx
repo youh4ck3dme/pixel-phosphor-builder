@@ -27,12 +27,56 @@ function AuthPage() {
   const [password, setPassword] = React.useState("");
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [checking, setChecking] = React.useState(true);
 
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate({ to: "/" });
-    });
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) setChecking(false);
+    }, 4000);
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        if (session) navigate({ to: "/" });
+        else setChecking(false);
+      })
+      .catch(() => !cancelled && setChecking(false))
+      .finally(() => clearTimeout(timer));
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [navigate]);
+
+  if (checking) {
+    return (
+      <main className="min-h-[100dvh] bg-background text-foreground flex flex-col">
+        <header className="hairline-bottom px-3 py-3 flex items-center gap-2">
+          <div className="size-9 rounded-[5px] hairline" />
+          <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            H4CK3D · Checking session…
+          </span>
+        </header>
+        <div className="flex-1 flex items-center justify-center px-4 py-6">
+          <div className="w-full max-w-sm space-y-4" aria-busy="true" aria-live="polite">
+            <div className="h-10 w-2/3 rounded-[5px] bg-foreground/5 animate-pulse" />
+            <div className="h-4 w-3/4 rounded-[5px] bg-foreground/5 animate-pulse" />
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <div className="h-10 rounded-[5px] bg-foreground/5 animate-pulse" />
+              <div className="h-10 rounded-[5px] bg-foreground/5 animate-pulse" />
+            </div>
+            <div className="h-10 rounded-[5px] bg-foreground/5 animate-pulse" />
+            <div className="h-10 rounded-[5px] bg-foreground/5 animate-pulse" />
+            <div className="h-10 rounded-[5px] bg-foreground/5 animate-pulse" />
+            <p className="text-center font-mono text-[10px] uppercase tracking-widest text-muted-foreground pt-2 inline-flex items-center justify-center gap-2 w-full">
+              <Loader2 className="size-3 animate-spin" /> Verifying your session…
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

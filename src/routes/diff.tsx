@@ -32,19 +32,29 @@ function DiffRoute() {
   const [loading, setLoading] = React.useState(true);
   const [mode, setMode] = React.useState<Mode>("code");
   const [overlay, setOverlay] = React.useState(50);
+  const [status, setStatus] = React.useState("Loading builds…");
 
   React.useEffect(() => {
     if (!a || !b) {
       setLoading(false);
       return;
     }
+    setStatus("Fetching build A & B…");
+    const slow = setTimeout(
+      () => setStatus("Still loading… large builds may take a moment"),
+      3500,
+    );
     Promise.all([getBuildById(a), getBuildById(b)])
       .then(([x, y]) => {
         setBA(x);
         setBB(y);
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load builds"))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        clearTimeout(slow);
+        setLoading(false);
+      });
+    return () => clearTimeout(slow);
   }, [a, b]);
 
   const diff = React.useMemo(
@@ -85,11 +95,7 @@ function DiffRoute() {
         </div>
 
         <main className="relative min-h-0 overflow-hidden">
-          {loading && (
-            <div className="grid place-items-center h-full">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
+          {loading && <DiffSkeleton mode={mode} status={status} />}
           {!loading && (!bA || !bB) && (
             <div className="grid place-items-center h-full">
               <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
@@ -128,6 +134,36 @@ function ModeBtn({
       <Icon className="size-3.5" />
       {label}
     </button>
+  );
+}
+
+function DiffSkeleton({ mode, status }: { mode: Mode; status: string }) {
+  return (
+    <div className="h-full w-full p-3" aria-busy="true" aria-live="polite">
+      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3 inline-flex items-center gap-2">
+        <Loader2 className="size-3 animate-spin" /> {status}
+      </div>
+      {mode === "code" && (
+        <div className="space-y-1.5">
+          {Array.from({ length: 14 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-3 rounded-[3px] bg-foreground/5 animate-pulse"
+              style={{ width: `${40 + ((i * 13) % 55)}%` }}
+            />
+          ))}
+        </div>
+      )}
+      {mode === "visual" && (
+        <div className="grid grid-rows-2 gap-2 h-[calc(100%-2rem)]">
+          <div className="rounded-[5px] bg-foreground/5 animate-pulse" />
+          <div className="rounded-[5px] bg-foreground/5 animate-pulse" />
+        </div>
+      )}
+      {mode === "overlay" && (
+        <div className="rounded-[5px] bg-foreground/5 animate-pulse h-[calc(100%-2rem)]" />
+      )}
+    </div>
   );
 }
 
