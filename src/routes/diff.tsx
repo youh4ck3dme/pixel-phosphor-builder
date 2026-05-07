@@ -137,13 +137,37 @@ function ModeBtn({
   );
 }
 
-function CodeDiffView({ lines }: { lines: { kind: "add" | "del" | "ctx"; text: string }[] }) {
-  return null as never;
+function DiffSkeleton({ mode, status }: { mode: Mode; status: string }) {
+  return (
+    <div className="h-full w-full p-3" aria-busy="true" aria-live="polite">
+      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3 inline-flex items-center gap-2">
+        <Loader2 className="size-3 animate-spin" /> {status}
+      </div>
+      {mode === "code" && (
+        <div className="space-y-1.5">
+          {Array.from({ length: 14 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-3 rounded-[3px] bg-foreground/5 animate-pulse"
+              style={{ width: `${40 + ((i * 13) % 55)}%` }}
+            />
+          ))}
+        </div>
+      )}
+      {mode === "visual" && (
+        <div className="grid grid-rows-2 gap-2 h-[calc(100%-2rem)]">
+          <div className="rounded-[5px] bg-foreground/5 animate-pulse" />
+          <div className="rounded-[5px] bg-foreground/5 animate-pulse" />
+        </div>
+      )}
+      {mode === "overlay" && (
+        <div className="rounded-[5px] bg-foreground/5 animate-pulse h-[calc(100%-2rem)]" />
+      )}
+    </div>
+  );
 }
 
-// (placeholder removed below — real CodeDiffView preserved)
-function _Unused() { return null; }
-
+function CodeDiffView({ lines }: { lines: { kind: "add" | "del" | "ctx"; text: string }[] }) {
   return (
     <pre className="h-full overflow-auto bg-black px-3 py-3 font-mono text-[11px] leading-snug">
       {lines.map((l, i) => (
