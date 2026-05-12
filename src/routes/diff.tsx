@@ -22,6 +22,74 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 const PHASE_ORDER: Phase[] = ["fetch-a", "fetch-b", "diffing", "rendering", "done"];
 
+// Relative weights per phase (sum = 1.0). Used for overall % + ETA.
+const PHASE_WEIGHT: Record<Exclude<Phase, "idle" | "done" | "error">, number> = {
+  "fetch-a": 0.35,
+  "fetch-b": 0.35,
+  diffing: 0.2,
+  rendering: 0.1,
+};
+// Default expected duration per phase (ms) — refined as real samples arrive.
+const PHASE_DEFAULT_MS: Record<Exclude<Phase, "idle" | "done" | "error">, number> = {
+  "fetch-a": 800,
+  "fetch-b": 800,
+  diffing: 250,
+  rendering: 200,
+};
+
+type PhaseTimings = Partial<Record<Phase, number>>;
+
+function computeProgress(
+  phase: Phase,
+  phaseStart: number,
+  now: number,
+  timings: PhaseTimings,
+): { pct: number; etaMs: number } {
+  if (phase === "done") return { pct: 100, etaMs: 0 };
+  if (phase === "error" || phase === "idle") return { pct: 0, etaMs: 0 };
+
+  let completedWeight = 0;
+  let completedElapsed = 0;
+  for (const p of PHASE_ORDER) {
+    if (p === phase || p === "done") break;
+    completedWeight += PHASE_WEIGHT[p as keyof typeof PHASE_WEIGHT] ?? 0;
+    completedElapsed += timings[p] ?? PHASE_DEFAULT_MS[p as keyof typeof PHASE_DEFAULT_MS] ?? 0;
+  }
+
+  const phaseW = PHASE_WEIGHT[phase as keyof typeof PHASE_WEIGHT] ?? 0;
+  const phaseElapsed = Math.max(0, now - phaseStart);
+  const phaseExpected = PHASE_DEFAULT_MS[phase as keyof typeof PHASE_DEFAULT_MS] ?? 500;
+  // Asymptotic — never reaches 100% within a phase until it actually completes.
+  const phaseFrac = 1 - Math.exp(-phaseElapsed / phaseExpected);
+  const cappedFrac = Math.min(0.95, phaseFrac);
+
+  const pct = Math.min(99, (completedWeight + phaseW * cappedFrac) * 100);
+
+  // ETA: extrapolate from observed throughput when we have data, else defaults.
+  let etaMs: number;
+  if (completedWeight > 0 && completedElapsed > 0) {
+    const msPerWeight = completedElapsed / completedWeight;
+    const remainingWeight = 1 - completedWeight - phaseW * cappedFrac;
+    etaMs = Math.max(0, remainingWeight * msPerWeight + (phaseExpected - phaseElapsed));
+  } else {
+    let remaining = Math.max(0, phaseExpected - phaseElapsed);
+    let started = false;
+    for (const p of PHASE_ORDER) {
+      if (p === "done") break;
+      if (p === phase) { started = true; continue; }
+      if (started) remaining += PHASE_DEFAULT_MS[p as keyof typeof PHASE_DEFAULT_MS] ?? 0;
+    }
+    etaMs = remaining;
+  }
+  return { pct, etaMs };
+}
+
+function formatEta(ms: number) {
+  if (ms <= 0) return "—";
+  if (ms < 950) return "<1s";
+  return `~${Math.round(ms / 1000)}s`;
+}
+
 export const Route = createFileRoute("/diff")({
   validateSearch: (s: Record<string, unknown>): Search => ({
     a: typeof s.a === "string" ? s.a : undefined,
@@ -48,6 +116,10 @@ function DiffRoute() {
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [slow, setSlow] = React.useState(false);
   const [elapsed, setElapsed] = React.useState(0);
+  const [phaseStart, setPhaseStart] = React.useState(0);
+  const [now, setNow] = React.useState(0);
+  const timingsRef = React.useRef<PhaseTimings>({});
+  const phaseStartRef = React.useRef<number>(0);
 
   React.useEffect(() => {
     if (!a || !b) {
@@ -56,28 +128,49 @@ function DiffRoute() {
     }
     let cancelled = false;
     const start = performance.now();
+    setPhaseStart(start);
+    phaseStartRef.current = start;
+    setNow(start);
+    timingsRef.current = {};
     const tick = setInterval(() => {
-      if (!cancelled) setElapsed(performance.now() - start);
+      if (!cancelled) {
+        const t = performance.now();
+        setElapsed(t - start);
+        setNow(t);
+      }
     }, 100);
     const slowT = setTimeout(() => !cancelled && setSlow(true), 3500);
 
+    const enter = (p: Phase) => {
+      const t = performance.now();
+      setPhase((prev) => {
+        if (prev !== "idle" && prev !== "error" && prev !== "done") {
+          timingsRef.current[prev] = t - phaseStartRef.current;
+        }
+        return p;
+      });
+      phaseStartRef.current = t;
+      setPhaseStart(t);
+      setNow(t);
+    };
+
     (async () => {
       try {
-        setPhase("fetch-a");
+        enter("fetch-a");
         const x = await getBuildById(a);
         if (cancelled) return;
         setBA(x);
-        setPhase("fetch-b");
+        enter("fetch-b");
         const y = await getBuildById(b);
         if (cancelled) return;
         setBB(y);
-        setPhase("diffing");
+        enter("diffing");
         await new Promise((r) => setTimeout(r, 0));
         if (cancelled) return;
-        setPhase("rendering");
+        enter("rendering");
         await new Promise((r) => requestAnimationFrame(() => r(null)));
         if (cancelled) return;
-        setPhase("done");
+        enter("done");
         setLoading(false);
       } catch (e) {
         if (cancelled) return;
@@ -133,7 +226,15 @@ function DiffRoute() {
 
         <main className="relative min-h-0 overflow-hidden">
           {loading && (
-            <DiffSkeleton mode={mode} phase={phase} elapsed={elapsed} slow={slow} />
+            <DiffSkeleton
+              mode={mode}
+              phase={phase}
+              elapsed={elapsed}
+              slow={slow}
+              phaseStart={phaseStart}
+              now={now}
+              timings={timingsRef.current}
+            />
           )}
           {!loading && (!bA || !bB) && (
             <div className="grid place-items-center h-full">
@@ -181,14 +282,21 @@ function DiffSkeleton({
   phase,
   elapsed,
   slow,
+  phaseStart,
+  now,
+  timings,
 }: {
   mode: Mode;
   phase: Phase;
   elapsed: number;
   slow: boolean;
+  phaseStart: number;
+  now: number;
+  timings: PhaseTimings;
 }) {
   const currentIdx = Math.max(0, PHASE_ORDER.indexOf(phase));
   const isError = phase === "error";
+  const { pct, etaMs } = computeProgress(phase, phaseStart, now, timings);
   return (
     <div className="h-full w-full p-3" aria-busy="true" aria-live="polite">
       <div className="mb-3 space-y-1.5">
@@ -198,10 +306,31 @@ function DiffSkeleton({
             {!isError && phase !== "done" && <Loader2 className="size-3 animate-spin" />}
             {PHASE_LABELS[phase]}
           </div>
-          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-            {(elapsed / 1000).toFixed(1)}s
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground inline-flex items-center gap-2">
+            <span className="text-phosphor">{Math.floor(pct)}%</span>
+            <span aria-hidden>·</span>
+            <span>{(elapsed / 1000).toFixed(1)}s</span>
+            <span aria-hidden>·</span>
+            <span>ETA {formatEta(etaMs)}</span>
           </span>
         </div>
+        {/* Continuous progress bar */}
+        <div
+          className="h-[3px] w-full overflow-hidden rounded-full"
+          style={{ background: "color-mix(in oklab, var(--foreground) 8%, transparent)" }}
+        >
+          <div
+            className="h-full transition-[width] duration-200 ease-out"
+            style={{
+              width: `${pct}%`,
+              background: isError
+                ? "var(--destructive, #ef4444)"
+                : "linear-gradient(90deg, var(--amber), var(--phosphor))",
+              boxShadow: "0 0 8px -1px var(--phosphor)",
+            }}
+          />
+        </div>
+        {/* Phase pips */}
         <div className="flex items-center gap-1">
           {PHASE_ORDER.map((p, i) => {
             const reached = i <= currentIdx;
@@ -228,26 +357,142 @@ function DiffSkeleton({
           </div>
         )}
       </div>
-      {mode === "code" && (
-        <div className="space-y-1.5">
-          {Array.from({ length: 14 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-3 rounded-[3px] bg-foreground/5 animate-pulse"
-              style={{ width: `${40 + ((i * 13) % 55)}%` }}
-            />
-          ))}
+      <PhaseAwareSkeleton mode={mode} phase={phase} />
+    </div>
+  );
+}
+
+/**
+ * Skeleton body that mirrors the *current loading phase* per mode:
+ * - fetch-a:   only A side is "loading" (B remains an empty placeholder)
+ * - fetch-b:   A side appears "ready" (subtle solid), B side still shimmering
+ * - diffing:   both sides ready, code lines stream in (alternating add/del tones)
+ * - rendering: faint scanline reveal animation across the whole pane
+ */
+function PhaseAwareSkeleton({ mode, phase }: { mode: Mode; phase: Phase }) {
+  const isFetchingA = phase === "fetch-a";
+  const isFetchingB = phase === "fetch-b";
+  const isDiffing = phase === "diffing";
+  const isRendering = phase === "rendering";
+
+  if (mode === "code") {
+    // Show diff-style placeholder lines; tint them once we hit "diffing".
+    return (
+      <div className="space-y-1.5">
+        {Array.from({ length: 16 }).map((_, i) => {
+          const tint = isDiffing || isRendering
+            ? i % 5 === 0
+              ? "color-mix(in oklab, var(--phosphor) 10%, transparent)"
+              : i % 7 === 0
+                ? "color-mix(in oklab, var(--amber) 10%, transparent)"
+                : "color-mix(in oklab, var(--foreground) 5%, transparent)"
+            : "color-mix(in oklab, var(--foreground) 5%, transparent)";
+          const showSign = isDiffing || isRendering;
+          const sign = i % 5 === 0 ? "+" : i % 7 === 0 ? "-" : " ";
+          const signColor = sign === "+"
+            ? "var(--phosphor)"
+            : sign === "-"
+              ? "var(--amber)"
+              : "var(--muted-foreground)";
+          const animate =
+            (isFetchingA && i < 8) ||
+            (isFetchingB && i >= 8) ||
+            isDiffing ||
+            isRendering;
+          return (
+            <div key={i} className="flex items-center gap-2">
+              {showSign && (
+                <span
+                  className="font-mono text-[11px] w-3 text-center opacity-70"
+                  style={{ color: signColor }}
+                >
+                  {sign}
+                </span>
+              )}
+              <div
+                className={`h-3 rounded-[3px] flex-1 ${animate ? "animate-pulse" : ""}`}
+                style={{
+                  background: tint,
+                  width: `${40 + ((i * 13) % 55)}%`,
+                  maxWidth: `${40 + ((i * 13) % 55)}%`,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (mode === "visual") {
+    return (
+      <div className="grid grid-rows-2 gap-2 h-[calc(100%-3.5rem)]">
+        <SkeletonPane label="A" loading={isFetchingA} ready={!isFetchingA} rendering={isRendering} />
+        <SkeletonPane label="B" loading={isFetchingB || isFetchingA} ready={!isFetchingA && !isFetchingB} rendering={isRendering} />
+      </div>
+    );
+  }
+
+  // overlay
+  return (
+    <div className="relative rounded-[5px] overflow-hidden h-[calc(100%-3.5rem)] bg-foreground/5">
+      <div
+        className={`absolute inset-0 ${isFetchingA || isFetchingB ? "animate-pulse" : ""}`}
+        style={{
+          background:
+            "linear-gradient(135deg, color-mix(in oklab, var(--amber) 8%, transparent), color-mix(in oklab, var(--phosphor) 8%, transparent))",
+        }}
+      />
+      {isRendering && <ScanlineSweep />}
+      <div className="absolute bottom-3 left-3 right-3 hairline rounded-[5px] bg-background/60 backdrop-blur-xl px-3 py-2 flex items-center gap-3">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">A</span>
+        <div className="h-1.5 flex-1 rounded-full bg-foreground/10 overflow-hidden">
+          <div className="h-full w-1/2 bg-amber/60" />
+        </div>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-phosphor">B</span>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonPane({
+  label, loading, ready, rendering,
+}: { label: string; loading: boolean; ready: boolean; rendering: boolean }) {
+  return (
+    <div className="relative rounded-[5px] overflow-hidden bg-foreground/5">
+      <span className="absolute top-1 left-2 z-10 font-mono text-[10px] uppercase tracking-widest text-amber bg-black/70 px-1 rounded-[2px]">
+        {label}
+      </span>
+      <div
+        className={`absolute inset-0 ${loading ? "animate-pulse" : ""}`}
+        style={{
+          background: ready
+            ? "color-mix(in oklab, var(--phosphor) 6%, transparent)"
+            : "color-mix(in oklab, var(--foreground) 6%, transparent)",
+        }}
+      />
+      {rendering && <ScanlineSweep />}
+      {ready && !rendering && (
+        <div className="absolute top-1 right-2 font-mono text-[9px] uppercase tracking-widest text-phosphor">
+          ✓ ready
         </div>
       )}
-      {mode === "visual" && (
-        <div className="grid grid-rows-2 gap-2 h-[calc(100%-2rem)]">
-          <div className="rounded-[5px] bg-foreground/5 animate-pulse" />
-          <div className="rounded-[5px] bg-foreground/5 animate-pulse" />
-        </div>
-      )}
-      {mode === "overlay" && (
-        <div className="rounded-[5px] bg-foreground/5 animate-pulse h-[calc(100%-2rem)]" />
-      )}
+    </div>
+  );
+}
+
+function ScanlineSweep() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div
+        className="absolute left-0 right-0 h-8"
+        style={{
+          background:
+            "linear-gradient(180deg, transparent, color-mix(in oklab, var(--phosphor) 25%, transparent), transparent)",
+          animation: "diff-scan 1.4s linear infinite",
+        }}
+      />
+      <style>{`@keyframes diff-scan { 0% { top: -10%; } 100% { top: 110%; } }`}</style>
     </div>
   );
 }
