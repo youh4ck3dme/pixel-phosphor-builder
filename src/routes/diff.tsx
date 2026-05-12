@@ -8,6 +8,19 @@ import { computeLineDiff } from "@/lib/diff";
 import { tap } from "@/hooks/useHaptic";
 
 type Search = { a?: string; b?: string };
+type Phase = "idle" | "fetch-a" | "fetch-b" | "diffing" | "rendering" | "done" | "error";
+
+const PHASE_LABELS: Record<Phase, string> = {
+  idle: "Idle",
+  "fetch-a": "Fetching build A…",
+  "fetch-b": "Fetching build B…",
+  diffing: "Computing diff…",
+  rendering: "Rendering preview…",
+  done: "Ready",
+  error: "Failed",
+};
+
+const PHASE_ORDER: Phase[] = ["fetch-a", "fetch-b", "diffing", "rendering", "done"];
 
 export const Route = createFileRoute("/diff")({
   validateSearch: (s: Record<string, unknown>): Search => ({
@@ -32,29 +45,53 @@ function DiffRoute() {
   const [loading, setLoading] = React.useState(true);
   const [mode, setMode] = React.useState<Mode>("code");
   const [overlay, setOverlay] = React.useState(50);
-  const [status, setStatus] = React.useState("Loading builds…");
+  const [phase, setPhase] = React.useState<Phase>("idle");
+  const [slow, setSlow] = React.useState(false);
+  const [elapsed, setElapsed] = React.useState(0);
 
   React.useEffect(() => {
     if (!a || !b) {
       setLoading(false);
       return;
     }
-    setStatus("Fetching build A & B…");
-    const slow = setTimeout(
-      () => setStatus("Still loading… large builds may take a moment"),
-      3500,
-    );
-    Promise.all([getBuildById(a), getBuildById(b)])
-      .then(([x, y]) => {
+    let cancelled = false;
+    const start = performance.now();
+    const tick = setInterval(() => {
+      if (!cancelled) setElapsed(performance.now() - start);
+    }, 100);
+    const slowT = setTimeout(() => !cancelled && setSlow(true), 3500);
+
+    (async () => {
+      try {
+        setPhase("fetch-a");
+        const x = await getBuildById(a);
+        if (cancelled) return;
         setBA(x);
+        setPhase("fetch-b");
+        const y = await getBuildById(b);
+        if (cancelled) return;
         setBB(y);
-      })
-      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load builds"))
-      .finally(() => {
-        clearTimeout(slow);
+        setPhase("diffing");
+        await new Promise((r) => setTimeout(r, 0));
+        if (cancelled) return;
+        setPhase("rendering");
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        if (cancelled) return;
+        setPhase("done");
         setLoading(false);
-      });
-    return () => clearTimeout(slow);
+      } catch (e) {
+        if (cancelled) return;
+        setPhase("error");
+        toast.error(e instanceof Error ? e.message : "Failed to load builds");
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(slowT);
+      clearInterval(tick);
+    };
   }, [a, b]);
 
   const diff = React.useMemo(
@@ -95,7 +132,9 @@ function DiffRoute() {
         </div>
 
         <main className="relative min-h-0 overflow-hidden">
-          {loading && <DiffSkeleton mode={mode} status={status} />}
+          {loading && (
+            <DiffSkeleton mode={mode} phase={phase} elapsed={elapsed} slow={slow} />
+          )}
           {!loading && (!bA || !bB) && (
             <div className="grid place-items-center h-full">
               <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
@@ -137,11 +176,57 @@ function ModeBtn({
   );
 }
 
-function DiffSkeleton({ mode, status }: { mode: Mode; status: string }) {
+function DiffSkeleton({
+  mode,
+  phase,
+  elapsed,
+  slow,
+}: {
+  mode: Mode;
+  phase: Phase;
+  elapsed: number;
+  slow: boolean;
+}) {
+  const currentIdx = Math.max(0, PHASE_ORDER.indexOf(phase));
+  const isError = phase === "error";
   return (
     <div className="h-full w-full p-3" aria-busy="true" aria-live="polite">
-      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3 inline-flex items-center gap-2">
-        <Loader2 className="size-3 animate-spin" /> {status}
+      <div className="mb-3 space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-widest inline-flex items-center gap-2"
+               style={{ color: isError ? "var(--destructive, #ef4444)" : "var(--amber)" }}>
+            {!isError && phase !== "done" && <Loader2 className="size-3 animate-spin" />}
+            {PHASE_LABELS[phase]}
+          </div>
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+            {(elapsed / 1000).toFixed(1)}s
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {PHASE_ORDER.map((p, i) => {
+            const reached = i <= currentIdx;
+            const active = i === currentIdx && !isError && phase !== "done";
+            return (
+              <div
+                key={p}
+                className="h-[2px] flex-1 rounded-full transition-colors"
+                style={{
+                  background: reached
+                    ? isError
+                      ? "var(--destructive, #ef4444)"
+                      : "var(--phosphor)"
+                    : "color-mix(in oklab, var(--foreground) 12%, transparent)",
+                  boxShadow: active ? "0 0 6px var(--phosphor)" : "none",
+                }}
+              />
+            );
+          })}
+        </div>
+        {slow && (
+          <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+            ▒ still working… large builds may take a moment ▒
+          </div>
+        )}
       </div>
       {mode === "code" && (
         <div className="space-y-1.5">
