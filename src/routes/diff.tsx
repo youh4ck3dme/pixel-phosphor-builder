@@ -119,6 +119,7 @@ function DiffRoute() {
   const [phaseStart, setPhaseStart] = React.useState(0);
   const [now, setNow] = React.useState(0);
   const timingsRef = React.useRef<PhaseTimings>({});
+  const phaseStartRef = React.useRef<number>(0);
 
   React.useEffect(() => {
     if (!a || !b) {
@@ -128,6 +129,7 @@ function DiffRoute() {
     let cancelled = false;
     const start = performance.now();
     setPhaseStart(start);
+    phaseStartRef.current = start;
     setNow(start);
     timingsRef.current = {};
     const tick = setInterval(() => {
@@ -143,11 +145,11 @@ function DiffRoute() {
       const t = performance.now();
       setPhase((prev) => {
         if (prev !== "idle" && prev !== "error" && prev !== "done") {
-          timingsRef.current[prev] = t - (timingsRef.current.__start ?? t);
+          timingsRef.current[prev] = t - phaseStartRef.current;
         }
         return p;
       });
-      timingsRef.current.__start = t as unknown as number; // sentinel for next phase
+      phaseStartRef.current = t;
       setPhaseStart(t);
       setNow(t);
     };
