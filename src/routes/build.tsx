@@ -14,7 +14,6 @@ import { ViewportSwitcher, VIEWPORT_WIDTH, type ViewportKey } from "@/components
 import { QualityPanel } from "@/components/build/QualityPanel";
 import { SlashMenu } from "@/components/build/SlashMenu";
 import { detectMilestones, type Milestone } from "@/lib/html.milestones";
-import { findPreset } from "@/lib/prompt.presets";
 import { exportBuildZip } from "@/lib/export.zip";
 import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/lib/storage";
 import { tap } from "@/hooks/useHaptic";
