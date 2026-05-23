@@ -19,6 +19,7 @@ import { Route as RemixBuildIdRouteImport } from './routes/remix.$buildId'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as ApiGenerateRouteImport } from './routes/api/generate'
+import { Route as ApiEnhanceRouteImport } from './routes/api/enhance'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -70,6 +71,11 @@ const ApiGenerateRoute = ApiGenerateRouteImport.update({
   path: '/api/generate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEnhanceRoute = ApiEnhanceRouteImport.update({
+  id: '/api/enhance',
+  path: '/api/enhance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/diff': typeof DiffRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
+  '/api/enhance': typeof ApiEnhanceRoute
   '/api/generate': typeof ApiGenerateRoute
   '/p/$slug': typeof PSlugRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/diff': typeof DiffRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
+  '/api/enhance': typeof ApiEnhanceRoute
   '/api/generate': typeof ApiGenerateRoute
   '/p/$slug': typeof PSlugRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/diff': typeof DiffRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
+  '/api/enhance': typeof ApiEnhanceRoute
   '/api/generate': typeof ApiGenerateRoute
   '/p/$slug': typeof PSlugRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/diff'
     | '/projects'
     | '/reset-password'
+    | '/api/enhance'
     | '/api/generate'
     | '/p/$slug'
     | '/projects/$projectId'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/diff'
     | '/projects'
     | '/reset-password'
+    | '/api/enhance'
     | '/api/generate'
     | '/p/$slug'
     | '/projects/$projectId'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/diff'
     | '/projects'
     | '/reset-password'
+    | '/api/enhance'
     | '/api/generate'
     | '/p/$slug'
     | '/projects/$projectId'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   DiffRoute: typeof DiffRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiEnhanceRoute: typeof ApiEnhanceRoute
   ApiGenerateRoute: typeof ApiGenerateRoute
   PSlugRoute: typeof PSlugRoute
   RemixBuildIdRoute: typeof RemixBuildIdRoute
@@ -231,6 +244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/enhance': {
+      id: '/api/enhance'
+      path: '/api/enhance'
+      fullPath: '/api/enhance'
+      preLoaderRoute: typeof ApiEnhanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -253,6 +273,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiffRoute: DiffRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiEnhanceRoute: ApiEnhanceRoute,
   ApiGenerateRoute: ApiGenerateRoute,
   PSlugRoute: PSlugRoute,
   RemixBuildIdRoute: RemixBuildIdRoute,
@@ -260,12 +281,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

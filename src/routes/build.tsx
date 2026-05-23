@@ -1,11 +1,20 @@
 import * as React from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { ArrowLeft, Download, RotateCw, Copy, ArrowUp, Code2, Eye, ChevronDown, Star, GitBranch } from "lucide-react";
+import {
+  ArrowLeft, Download, RotateCw, Copy, ArrowUp, Code2, Eye, ChevronDown,
+  Star, GitBranch, Square, Sparkles, Gauge, Wand2, Package,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { PreviewFrame } from "@/components/phosphor/PreviewFrame";
 import { CodePane } from "@/components/phosphor/CodePane";
 import { StreamProgress, type StreamPhase } from "@/components/phosphor/StreamProgress";
+import { StreamTimeline } from "@/components/build/StreamTimeline";
+import { ViewportSwitcher, VIEWPORT_WIDTH, type ViewportKey } from "@/components/build/ViewportSwitcher";
+import { QualityPanel } from "@/components/build/QualityPanel";
+import { SlashMenu } from "@/components/build/SlashMenu";
+import { detectMilestones, type Milestone } from "@/lib/html.milestones";
+import { exportBuildZip } from "@/lib/export.zip";
 import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/lib/storage";
 import { tap } from "@/hooks/useHaptic";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +41,8 @@ function BuildRoute() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
-  const [tab, setTab] = React.useState<"preview" | "code">("preview");
+  const [tab, setTab] = React.useState<"preview" | "code" | "quality">("preview");
+  const [viewport, setViewport] = React.useState<ViewportKey>("mobile");
   const [code, setCode] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
   const [phase, setPhase] = React.useState<StreamPhase>("idle");
@@ -48,6 +58,10 @@ function BuildRoute() {
   const [authed, setAuthed] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
   const startedRef = React.useRef(false);
+  const [milestones, setMilestones] = React.useState<Set<Milestone>>(new Set());
+  const [enhancing, setEnhancing] = React.useState(false);
+  const [designerBusy, setDesignerBusy] = React.useState(false);
+  const [showSlash, setShowSlash] = React.useState(false);
 
   // Tick elapsed time while streaming
   React.useEffect(() => {
@@ -118,6 +132,7 @@ function BuildRoute() {
     setElapsedMs(0);
     startTimeRef.current = Date.now();
     setCode("");
+    setMilestones(new Set());
     setTitle(userPrompt.slice(0, 40));
     setTab("code");
     abortRef.current?.abort();
@@ -158,6 +173,7 @@ function BuildRoute() {
         acc += chunk;
         setCode(acc);
         setBytes(acc.length);
+        setMilestones(detectMilestones(acc));
         setPhase((p) => (p === "requesting" ? "streaming" : p));
         if (!switched && acc.length > 400) {
           switched = true;
@@ -169,6 +185,7 @@ function BuildRoute() {
       const cleaned = acc.replace(/^```html\s*/i, "").replace(/```\s*$/i, "").trim();
       setCode(cleaned);
       setBytes(cleaned.length);
+      setMilestones(detectMilestones(cleaned + "</html>"));
 
       // Persist: cloud if authed, otherwise localStorage
       let savedId = buildId;
@@ -230,6 +247,66 @@ function BuildRoute() {
     void run(last, "");
   }
 
+  function stopStream() {
+    abortRef.current?.abort();
+    setStreaming(false);
+    setPhase("idle");
+    toast.message("Stopped");
+  }
+
+  async function enhancePrompt() {
+    if (!prompt.trim() || enhancing) return;
+    setEnhancing(true);
+    try {
+      const resp = await fetch("/api/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+      const j = await resp.json();
+      if (!resp.ok) throw new Error(j.error || "Enhance failed");
+      setPrompt(j.enhanced);
+      toast.success("Prompt enhanced");
+      tap();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Enhance failed");
+    } finally {
+      setEnhancing(false);
+    }
+  }
+
+  async function designerPass() {
+    if (!code || designerBusy || streaming) return;
+    setDesignerBusy(true);
+    try {
+      await run(
+        "Elevate the visual design: refine typography scale, spacing rhythm, add subtle micro-animations, improve color contrast, polish details. Keep ALL content, structure, and section order. Return the FULL upgraded document.",
+        code,
+      );
+      toast.success("Designer pass complete");
+    } catch {
+      toast.error("Designer pass failed");
+    } finally {
+      setDesignerBusy(false);
+    }
+  }
+
+  async function downloadZip() {
+    if (!code) return;
+    try {
+      await exportBuildZip({
+        html: code,
+        prompt: search.q || prompt || title,
+        title,
+        model,
+      });
+      toast.success("Downloaded .zip");
+      tap();
+    } catch {
+      toast.error("Export failed");
+    }
+  }
+
   function download() {
     if (!code) return;
     const blob = new Blob([code], { type: "text/html" });
@@ -260,8 +337,16 @@ function BuildRoute() {
     if (!prompt.trim() || streaming) return;
     const p = prompt.trim();
     setPrompt("");
+    setShowSlash(false);
     void run(p, code);
     tap(10);
+  }
+
+  function onPromptChange(v: string) {
+    setPrompt(v);
+    // Slash menu trigger: first chars start with "/" and no space yet
+    const first = v.trimStart();
+    setShowSlash(first.startsWith("/") && !first.includes(" "));
   }
 
   function toggleModel() {
@@ -284,7 +369,7 @@ function BuildRoute() {
           paddingTop: "env(safe-area-inset-top)",
           paddingLeft: "max(env(safe-area-inset-left), 0px)",
           paddingRight: "max(env(safe-area-inset-right), 0px)",
-          gridTemplateRows: "auto auto auto 1fr auto",
+          gridTemplateRows: "auto auto auto auto 1fr auto",
           rowGap: 0,
         }}
       >
@@ -304,6 +389,25 @@ function BuildRoute() {
             </span>
           </div>
           <div className="flex items-center gap-1">
+            {streaming ? (
+              <button
+                onClick={stopStream}
+                aria-label="Stop"
+                className="grid size-9 place-items-center rounded-[5px] hairline text-destructive hover:text-amber"
+              >
+                <Square className="size-4" />
+              </button>
+            ) : (
+              <button
+                onClick={designerPass}
+                disabled={!code || designerBusy}
+                aria-label="Make it beautiful"
+                title="AI Designer pass"
+                className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-phosphor disabled:opacity-40"
+              >
+                <Wand2 className={`size-4 ${designerBusy ? "animate-pulse" : ""}`} />
+              </button>
+            )}
             <button
               onClick={regenerate}
               disabled={streaming || !title}
@@ -327,6 +431,15 @@ function BuildRoute() {
               className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
             >
               <Download className="size-4" />
+            </button>
+            <button
+              onClick={downloadZip}
+              disabled={!code}
+              aria-label="Download .zip"
+              title="Export .zip with README"
+              className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
+            >
+              <Package className="size-4" />
             </button>
             <button
               onClick={async () => {
@@ -368,7 +481,11 @@ function BuildRoute() {
         <div className="flex items-center gap-1 px-3 py-2 hairline-bottom min-h-0">
           <TabBtn active={tab === "preview"} onClick={() => setTab("preview")} icon={Eye} label="Preview" />
           <TabBtn active={tab === "code"} onClick={() => setTab("code")} icon={Code2} label="Code" />
+          <TabBtn active={tab === "quality"} onClick={() => setTab("quality")} icon={Gauge} label="Quality" />
           <div className="ml-auto flex items-center gap-2">
+            {tab === "preview" && (
+              <ViewportSwitcher value={viewport} onChange={setViewport} />
+            )}
             {streaming && (
               <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-phosphor">
                 <span className="size-1.5 rounded-full bg-phosphor animate-phosphor" />
@@ -385,13 +502,28 @@ function BuildRoute() {
           </div>
         </div>
 
-        {/* Stream progress */}
-        <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
+        {/* Stream progress + milestones */}
+        <div>
+          <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
+          {(streaming || milestones.size > 0) && (
+            <StreamTimeline reached={milestones} active={streaming} />
+          )}
+        </div>
 
         {/* Stage */}
         <main className="relative min-h-0 overflow-hidden">
           {tab === "preview" ? (
-            <PreviewFrame html={code} />
+            <ViewportWrap viewport={viewport}>
+              <PreviewFrame html={code} />
+            </ViewportWrap>
+          ) : tab === "quality" ? (
+            <QualityPanel
+              html={code}
+              onFix={(fix) => {
+                setPrompt(fix);
+                setTab("preview");
+              }}
+            />
           ) : (
             <CodePane code={code} streaming={streaming} />
           )}
@@ -402,22 +534,42 @@ function BuildRoute() {
           className="hairline-top bg-background/85 backdrop-blur-xl px-3 pt-2"
           style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
         >
-          <div
-            className="flex items-center gap-2 rounded-[5px] bg-surface hairline px-2 py-1.5"
-          >
+          <div className="relative flex items-center gap-2 rounded-[5px] bg-surface hairline px-2 py-1.5">
+            {showSlash && (
+              <SlashMenu
+                query={prompt.trim()}
+                onPick={(p) => {
+                  setPrompt(p.template);
+                  setShowSlash(false);
+                }}
+                onClose={() => setShowSlash(false)}
+              />
+            )}
             <input
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => onPromptChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  submit();
+                } else if (e.key === "Enter" && !e.shiftKey && !showSlash) {
                   e.preventDefault();
                   submit();
                 }
               }}
-              placeholder={code ? "Iterate: add pricing, dark mode…" : "Describe what to build…"}
+              placeholder={code ? "Iterate, or type / for presets" : "Describe what to build (try /landing)…"}
               className="flex-1 bg-transparent px-2 py-1 font-mono text-foreground placeholder:text-muted-foreground focus:outline-none"
               style={{ fontSize: "16px" }}
             />
+            <button
+              onClick={enhancePrompt}
+              disabled={!prompt.trim() || enhancing || streaming}
+              aria-label="Enhance prompt"
+              title="Enhance prompt (AI)"
+              className="grid size-9 place-items-center rounded-[5px] hairline text-phosphor transition-opacity disabled:opacity-30"
+            >
+              <Sparkles className={`size-4 ${enhancing ? "animate-pulse" : ""}`} />
+            </button>
             <button
               onClick={submit}
               disabled={!prompt.trim() || streaming}
@@ -428,7 +580,31 @@ function BuildRoute() {
               <ArrowUp className="size-4" />
             </button>
           </div>
+          <div className="mt-1 px-1 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
+            ⌘+Enter send · / presets · ✦ enhance
+          </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ViewportWrap({
+  viewport,
+  children,
+}: {
+  viewport: ViewportKey;
+  children: React.ReactNode;
+}) {
+  const w = VIEWPORT_WIDTH[viewport];
+  if (w === null) return <div className="h-full w-full">{children}</div>;
+  return (
+    <div className="h-full w-full overflow-auto bg-background/50 grid place-items-start justify-center p-2">
+      <div
+        className="h-full hairline transition-[width] duration-300 ease-out bg-white"
+        style={{ width: Math.min(w, 9999), maxWidth: "100%" }}
+      >
+        {children}
       </div>
     </div>
   );

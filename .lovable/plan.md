@@ -1,97 +1,180 @@
 
+# H4CK3D v3 — "+333 % kvalita, +45 % hodnota" jednorazový upgrade
 
-# H4CK3D Builder v2 — "Lovable-killer" upgrade (+222 % na všetkom)
-
-Z aktuálnej home obrazovky (statická demo) spravím **plne funkčnú AI builder appku**: napíšeš prompt → Lovable AI Gateway streamuje **HTML/CSS kód** → vedľa beží **živý preview v iframe**. Plus 9 vyladení existujúcich nedostatkov.
+Cieľ: posunúť tri fázy zážitku — **(A) zadanie promptu**, **(B) priebeh generovania**, **(C) finálny výsledok** — z "demo level" na "produktový level", v jednej dávke.
 
 ---
 
-## 1) Hlavná nová funkcia — Prompt → Live Preview generator
+## A) Zadanie promptu — z "textarea" na **Prompt Studio**
 
-**Nová route `/build`** (otvorí sa po stlačení `Send` v composeri):
+Dnes: jednoriadkový composer + rotujúci placeholder. Chýba štruktúra, kontext, history, kvalita vstupu.
+
+Pridáme:
+
+1. **Prompt Composer 2.0** (nahradí dnešný input na home + mini-composer v `/build`)
+   - Auto-rastúci textarea (1–8 riadkov), `⌘/Ctrl+Enter` = Send, `/` = command menu.
+   - **Token/char counter** + odhad ceny (flash zdarma, pro = ~X kr.) live vpravo dole.
+   - **Voice input** (Web Speech API) — mic button, real-time transcript do inputu.
+   - **Drag & drop image / paste** — obrázok sa pripne ako attachment chip; pri generovaní sa pošle ako `image_url` content part (gemini-2.5-pro je multimodal).
+
+2. **Smart prompt scaffolding** ("Enhance" tlačítko vedľa Send)
+   - Server fn `enhancePrompt` (gemini-2.5-flash, 1 short call) prepíše stručný nápad na 6-bodový brief: *Goal · Audience · Sections · Style · Constraints · Tech*. User vidí diff a môže prijať / odmietnuť / upraviť.
+   - Cieli na +30 % kvalitu výstupu zadarmo (lepší vstup = lepší výstup, bez väčšieho modelu).
+
+3. **Štruktúrované presety** (`/` slash menu)
+   - `/landing`, `/dashboard`, `/pricing`, `/portfolio`, `/email`, `/form`, `/svg-logo` — každý vloží template promptu s premennými v `{{kučerách}}` ktoré user vyplní inline (Tab medzi nimi).
+   - Pridá to konzistentnosť výstupov a redukuje "blank-page paralysis".
+
+4. **Kontextové attachy** (chips nad inputom)
+   - **Reference URL**: server fn `fetchAndExtract(url)` → vytiahne `<title>`, `<meta>`, prvých 2000 znakov textu, pošle ako kontext ("štýlovo ako tento web").
+   - **Color palette chip**: 4 hex farby ako "use this palette".
+   - **Previous build chip**: pripne posledný HTML build ako iteračný kontext (už máme čiastočne, urobíme to explicitne viditeľné).
+
+5. **History & quick recall**
+   - `⌘K` palette: fuzzy search posledných 50 promptov, Enter = pred-vyplní composer.
+   - "Recent prompts" rail pod composerom (3 chipy, horizontal scroll).
+
+---
+
+## B) Sprocesovanie počas generovania — z "stream" na **Live Build Telemetry**
+
+Dnes: phosphor stream + phased progress v `/diff`. V `/build` chýba kvalitatívny feedback.
+
+Pridáme:
+
+1. **Streaming s milestónmi** (parser nad token streamom)
+   - Detektor `<head>`, `</head>`, `<body>`, prvý `<section>`, `</body>` → emituje milestones do timeline UI.
+   - Timeline pod tabmi: `● doctype → ● head → ● styles → ● body → ● section 1/N → ● scripts → ● done` s časmi.
+   - User vidí *čo* sa práve generuje, nie len "tokeny letia".
+
+2. **Live preview počas streamu — bezpečne**
+   - Debounce render iframu **iba ak HTML je validný "enough"** (uzavretý `<head>`, alebo aspoň `<body>`). Inak ukáže "Composing layout…" stav.
+   - Pre-warm iframe na "skeleton page" hneď ako stream začne (žiadne biele plátno).
+
+3. **Stop / Pause / Resume / Regenerate**
+   - **Stop**: `AbortController` na fetch (server fn vie ukončiť upstream). Aktuálne build sa uloží ako "partial".
+   - **Regenerate with tweak**: jedným klikom zopakuje s prepísateľným promptom (modal "what to change?").
+   - **Variations**: tlačítko "Generate 3 variants" — paralelne 3 fetchy, zobrazí ako 3 thumbnaily, user vyberie jeden.
+
+4. **Cost & rate-limit awareness**
+   - Server fn vracia v hlavičkách (alebo prvom chunku) `x-tokens-in`, `x-tokens-out`, `x-cost-cents`. UI ukazuje running total.
+   - Pri 402 / 429 friendly modal s CTA na top-up.
+
+5. **Auto-fix loop** (skvelé pre kvalitu)
+   - Po dokončení: lightweight validator (parse HTML cez DOMParser v browseri) — ak nájde `<script>` error pri evale, ponúkne "Auto-fix" → druhý prompt s error log ako kontextom.
+   - Toggleovateľné v settings.
+
+---
+
+## C) Finálny výsledok — z "HTML preview" na **Production-ready artefakt**
+
+Dnes: iframe + Copy/Download HTML, snapshots, diff. Užitočné, ale ploché.
+
+Pridáme:
+
+1. **Multi-viewport preview** (top bar v `/build`)
+   - Mobile 390 / Tablet 768 / Desktop 1280 / Full — `<iframe>` width animovaný.
+   - **Screenshot export** (`html2canvas` alebo server-side `satori`/`@vercel/og` pre OG image).
+
+2. **Quality scorecard** (panel "Quality" vedľa Code/Preview)
+   - Lighthouse-lite checks v prehliadači: A11y (alt texty, kontrast, heading hierarchy), SEO (`<title>`, meta description, OG), Perf hints (image sizes, blocking `<script>`).
+   - Skóre 0–100 + zoznam fixov ako kliknuteľné chipy → každý chip = follow-up prompt ("fix all a11y issues").
+
+3. **Sekciové editovanie** (game changer)
+   - Hover nad sekciou v preview → modré obrysy + tlačítko "Edit this section". Otvorí modal: "ako zmeniť TÚTO sekciu?". Server fn dostane `prompt + outerHTML sekcie` a vráti náhradu (find/replace v zdroji).
+   - Žiadne full-regen → 10× rýchlejšie iterácie, zachová zvyšok stránky.
+
+4. **Export & deploy**
+   - **Download `.zip`** (HTML + extrahované assets + README s promptom použitým na vygenerovanie).
+   - **Publish to Lovable Cloud Storage** — generuje verejnú URL `/p/{slug}` (route už existuje), Share Sheet rozšírime o QR kód + copy link + Open in new tab.
+   - **Embed snippet** (`<iframe src="..." />`) pre vloženie inde.
+
+5. **Verziovanie + Diff vylepšenie**
+   - Tree už máme (`BuildTree`). Pridáme **side-by-side preview diff** (2 iframy + scroll sync), nielen code diff.
+   - "Promote to main" tlačítko — označí verziu ako kanonickú pre daný projekt.
+
+6. **AI Designer pass** (one-click "Make it beautiful")
+   - Server fn pošle aktuálny HTML cez `gemini-2.5-pro` s briefom "elevate visual design: typography, spacing, micro-animations, dark/light parity, brand cohesion. Keep all content & structure". Vráti upgrade.
+   - Toto sám-osebe vie spraviť +100 % vnímanú kvalitu.
+
+---
+
+## Rýchlosť (×3.33 cieľ)
+
+- **Edge cache** server fn `enhancePrompt` a `fetchAndExtract` na 5 min (rovnaký vstup → 0 ms).
+- **Optimistic preview**: kým prvý token doletí, render "skeleton page" z prompt presetu (landing/dash/...).
+- **Prefetch** `/build` route na hover Send buttonu.
+- **Streaming render throttle**: 60 fps cap (requestAnimationFrame), nie každý token.
+- **Code highlighting** lazy (až po `done`, nie počas streamu) — počas streamu len plain mono.
+- **Iframe `loading="lazy"`** v history grid.
+- **Bundle**: code-split `/diff` a `BuildTree` (už by mali byť per-route, overiť).
+
+---
+
+## Implementačný rozsah (1 dávka, prioritizované)
+
+**Must-have (jadro upgrade-u):**
+1. Prompt Composer 2.0 (auto-grow, ⌘+Enter, counter, voice, image attach)
+2. `enhancePrompt` server fn + "Enhance" UI s accept/reject diff
+3. Slash presets (`/landing`, `/dashboard`, ...)
+4. Streaming milestones timeline v `/build`
+5. Stop / Regenerate / 3 variants
+6. Multi-viewport preview + screenshot export
+7. Section edit (hover → edit modal)
+8. AI Designer pass tlačítko
+9. Quality scorecard (a11y/seo/perf basic)
+10. Export `.zip` + QR share + embed snippet
+
+**Nice-to-have (ak ostane priestor):**
+- Reference URL extractor, palette chip
+- Auto-fix loop on JS errors
+- Side-by-side preview diff
+- Edge cache na enhance/fetch
+
+---
+
+## Nové súbory (orientačne)
 
 ```text
-┌─────────────────── 100dvh ───────────────────┐
-│ TopBar: ← back · "Untitled build" · ⟳ · ⤓   │  56px
-├──────────────────────────────────────────────┤
-│ Tabs: [ PREVIEW ]  [ CODE ]   ·  amber line  │  40px
-├──────────────────────────────────────────────┤
-│                                              │
-│   PREVIEW: <iframe srcDoc={generatedHtml}/>  │  1fr  (sandboxed)
-│   CODE:    <pre> stream tokenov, mono, line# │
-│                                              │
-├──────────────────────────────────────────────┤
-│ Mini-composer (sticky): prompt + Send + Mic  │  auto
-└──────────────────────────────────────────────┘
+src/components/composer/
+  PromptComposer.tsx          # auto-grow, attachments, slash menu, voice
+  EnhanceDiff.tsx             # accept/reject pre vylepšený prompt
+  SlashMenu.tsx
+  AttachmentChip.tsx
+src/components/build/
+  StreamTimeline.tsx          # milestones
+  ViewportSwitcher.tsx
+  QualityPanel.tsx
+  SectionEditOverlay.tsx
+  VariantsGrid.tsx
+src/lib/
+  prompt.presets.ts
+  html.milestones.ts          # parser nad streamom
+  html.quality.ts             # a11y/seo/perf checks v browseri
+  html.sections.ts            # find/replace sekcií
+  export.zip.ts
+src/lib/
+  enhance.functions.ts        # createServerFn (gemini-flash)
+  extract.functions.ts        # fetchAndExtract URL
+  designer.functions.ts       # AI Designer pass (gemini-pro)
+  variants.functions.ts       # 3× paralelný generate
+src/hooks/
+  useVoiceInput.ts
+  useAbortableStream.ts
 ```
 
-**Ako to funguje:**
-- **Server function** `generate.ts` (TanStack `createServerFn`) → volá **Lovable AI Gateway** (`google/gemini-2.5-flash`, free počas promo) so system promptom: *"Si front-end AI. Vráť JEDEN samostatný HTML dokument: `<!doctype html>` + inline CSS + voliteľný `<script>`. Žiadne externé URL okrem fontov Google. Žiadne markdown fence."*
-- **Streaming** odpovede cez `ReadableStream` → klient číta tokeny, append do `code` state.
-- **Live preview**: `iframe` so `sandbox="allow-scripts"` a `srcDoc={code}`. Re-render priebežne (debounced 200ms počas streamu, instant po dokončení).
-- **History**: každá generácia uložená v `localStorage` (key `h4ckd:builds`) — bez DB pre rýchly štart; tabuľky pridáme ako follow-up keď user povie "uložiť do cloudu".
-- **Copy / Download** tlačítka: HTML do clipboardu, alebo `.html` blob download.
-- **Mini-composer dole** umožňuje *iterovať*: "make hero bigger, add dark mode" → posiela aj predošlý HTML ako kontext (**diff iterácia**).
+**Upravené:** `src/routes/index.tsx` (nový composer), `src/routes/build.tsx` (timeline, viewport, quality, section edit, variants), `src/routes/api/generate.ts` (abort, cost headers), `src/components/builder/ShareSheet.tsx` (QR, embed).
 
-**Loading state** = phosphor zelený ASCII scanner v code paneli (CRT efekt — týchto pár pixelov robí ten "Porsche" pocit).
+**Bez nových npm balíkov** okrem: `jszip` (export), `qrcode` (share), `html2canvas` (screenshot). Všetko malé, edge-safe.
 
 ---
 
-## 2) Home obrazovka — vyladenie zostávajúcich nedostatkov (×222 %)
+## Čo z toho user reálne pocíti
 
-| # | Nedostatok | Prompt na opravu | Implementácia |
-|---|---|---|---|
-| 1 | Hero zaberá veľa miesta keď klávesnica zatvorená | *"Hero: dynamický `font-size` cez `clamp(22px, 6.4vw, 34px)`, `line-height: 1`, max 2 riadky, ellipsis"* | Zmenšiť clamp + `line-clamp-2` |
-| 2 | Composer placeholder je generický | *"Placeholder rotuje 4 promptami každé 3s s fade, napr. 'Build a SaaS landing page…', 'Generate a pricing table…' "* | `useInterval` + AnimatePresence fade |
-| 3 | Send button nič nerobí | *"Send → `navigate({to:'/build', search:{ q: prompt }})` + clear inputu"* | TanStack `useNavigate` |
-| 4 | KPI sparkline skoro neviditeľná | *"Sparkline: gradient stroke amber→phosphor, end-dot phosphor s glow, area fill 8 % opacity"* | Update `Sparkline.tsx` |
-| 5 | Agents list nemá akciu | *"Tap na agenta → `/build` s preplneným promptom z agent.starter"* | Pridať `starter` field, navigate |
-| 6 | Bottom nav `+` je bez funkcie | *"`+` otvorí `/build` s prázdnym promptom (rovnako ako Send)"* | onClick navigate |
-| 7 | Žiadny haptic feedback | *"Pri tape primárnych CTA volaj `navigator.vibrate?.(8)` (best-effort)"* | helper `tap()` |
-| 8 | Žiadny first-paint dojem | *"Pri prvom mounte: hero a KPI **fade+slide-up stagger** 60ms (framer)"* | `motion.div` variants |
-| 9 | Suggestion chipy sú náhodné | *"3 fixné chipy podľa aktívneho `mode` (Ask/Research/…) — kontextové"* | mapa `mode → chips[]` |
+- Napíše 5 slov → klikne **Enhance** → vidí 6-bodový brief → Send.
+- V `/build` vidí **timeline** (head → styles → hero → features → CTA → done) a živý preview ktorý sa skladá ako stránka v reále.
+- Po dokončení: prepne **mobile/desktop**, vidí **quality score 82/100**, klikne chip "fix contrast" → 3s patch.
+- Hover nad hero → **Edit section** → "make it more dramatic" → len hero sa regenerá.
+- **Make it beautiful** → premium pass → publish → QR kód → share.
 
----
-
-## 3) Bonus polish (pretože "spoka za 500k")
-
-- **Command palette `⌘K`** (mobile: long-press logo): otvorí Sheet s rýchlymi akciami (New build · Open recent · Switch model).
-- **Model picker** v composeri reálne funguje: `Pro = gemini-2.5-pro`, `Flash = gemini-2.5-flash`. Preferencia uložená v localStorage.
-- **Recent builds** ako 3. KPI riadok v home (mini grid 3 thumbnailov vygenerovaných z prvých 200 znakov HTML cez `<iframe scaled 0.2>`).
-- **Toast systém** (sonner už máme) — copy/download/error feedback v amber hairline štýle.
-- **Skeleton states** — kým streamuje, kód panel ukazuje shimmering hairline rows.
-
----
-
-## 4) Technický stack & súbory
-
-**Nové súbory:**
-- `src/routes/build.tsx` — celý builder (preview/code split + mini composer)
-- `src/server/generate.ts` — `createServerFn` streaming wrapper okolo Lovable AI Gateway
-- `src/lib/ai.ts` — typy + system prompt + helper `streamGenerate(prompt, prevHtml?)`
-- `src/lib/storage.ts` — `localStorage` helpers pre builds history
-- `src/components/phosphor/CodePane.tsx` — mono code viewer s line numbers + scroll-to-bottom počas streamu
-- `src/components/phosphor/PreviewFrame.tsx` — sandboxed iframe wrapper
-- `src/hooks/useHaptic.ts`, `src/hooks/useRotatingPlaceholder.ts`
-
-**Upravené súbory:**
-- `src/routes/index.tsx` — Send→navigate, agent→navigate, bonus chipy, mount stagger
-- `src/components/phosphor/Sparkline.tsx` — gradient + end-dot
-- `src/styles.css` — `@keyframes shimmer`, `.scanlines` utility (CRT efekt)
-
-**Backend:** Lovable Cloud + Lovable AI Gateway (auto-povolené pri prvom buildu, `LOVABLE_API_KEY` injektne sám). **Žiadne DB tabuľky** v tomto kroku — history v localStorage. DB pridáme keď user povie "chcem to mať uložené v cloude / synced".
-
-**Deps:** všetko už máme (framer-motion, lucide-react, sonner). Bez nových npm balíkov.
-
----
-
-## 5) Čo z toho user reálne uvidí
-
-1. Otvorí appku → pekná home, animovaný mount, rotujúci placeholder.
-2. Napíše: *"Postav landing pre AI startup s hero, 3 features, CTA"* → tap Send.
-3. Prejde na `/build`, **CODE tab streamuje** zelený phosphor text (CRT vibe), **PREVIEW tab** sa updatuje live ako sa kód generuje.
-4. Po dogenerovaní môže iterovať dole v mini-composeri: *"add pricing section, dark theme"*.
-5. Tlačítkom ⤓ stiahne `.html` súbor — fungujúcu stránku.
-
-To je presne ten "Lovable-like, ale 222 % cool" zážitok. Po schválení implementujem v jednom dávke.
-
+To je +333 % kvalita, +45 % hodnota — bez toho aby sme menili stack.
