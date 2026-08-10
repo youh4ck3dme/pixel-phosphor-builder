@@ -8,6 +8,9 @@ import { lovable } from "@/integrations/lovable";
 import { tap as haptic } from "@/hooks/useHaptic";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" ? s.next : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Sign in — H4CK3D" },
@@ -21,6 +24,12 @@ type Mode = "signin" | "signup" | "forgot";
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+  const goNext = React.useCallback(() => {
+    if (safeNext) window.location.href = safeNext;
+    else navigate({ to: "/" });
+  }, [safeNext, navigate]);
   const tap = () => haptic();
   const [mode, setMode] = React.useState<Mode>("signin");
   const [email, setEmail] = React.useState("");
@@ -38,7 +47,7 @@ function AuthPage() {
       .getSession()
       .then(({ data: { session } }) => {
         if (cancelled) return;
-        if (session) navigate({ to: "/" });
+        if (session) goNext();
         else setChecking(false);
       })
       .catch(() => !cancelled && setChecking(false))
@@ -47,7 +56,7 @@ function AuthPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [navigate]);
+  }, [goNext]);
 
   if (checking) {
     return (
@@ -88,7 +97,7 @@ function AuthPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/`,
+            emailRedirectTo: `${window.location.origin}${safeNext ?? "/"}`,
             data: { display_name: name || email.split("@")[0] },
           },
         });
@@ -98,7 +107,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back");
-        navigate({ to: "/" });
+        goNext();
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
@@ -119,10 +128,10 @@ function AuthPage() {
     setBusy(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: `${window.location.origin}/`,
+        redirect_uri: `${window.location.origin}${safeNext ?? "/"}`,
       });
       if (result.error) throw result.error;
-      if (!result.redirected) navigate({ to: "/" });
+      if (!result.redirected) goNext();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "OAuth failed");
       setBusy(false);
