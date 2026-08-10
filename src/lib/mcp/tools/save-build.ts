@@ -29,7 +29,7 @@ export default defineTool({
       }-${Math.random().toString(36).slice(2, 6)}`;
       const { data, error } = await supabase
         .from("projects")
-        .insert({ user_id: userId, name, slug })
+        .insert({ owner_id: userId, name, slug })
         .select("id, name, slug")
         .single();
       if (error) return { content: [{ type: "text", text: error.message }], isError: true };
@@ -40,7 +40,7 @@ export default defineTool({
       .from("builds")
       .insert({
         project_id: projectId,
-        user_id: userId,
+        owner_id: userId,
         prompt,
         html,
         model: "mcp",
