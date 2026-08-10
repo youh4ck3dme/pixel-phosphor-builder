@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://ihftttuzavilyzpnmltt.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "apex-builder",
+      "version": "0.1.0",
+      "title": "Apex Builder"
+    },
+    "tools": [
+      {
+        "name": "list_projects",
+        "title": "List projects",
+        "description": "List the signed-in user's builder projects, newest first.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Max projects to return (default 25)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_builds",
+        "title": "List builds",
+        "description": "List builds (generated HTML versions) for one of the user's projects. Returns metadata and prompts, not the HTML.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "description": "Project id from list_projects."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Max builds to return (default 25)."
+            }
+          },
+          "required": [
+            "project_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_build",
+        "title": "Get build HTML",
+        "description": "Read one build, including its full generated HTML document.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "build_id": {
+              "type": "string",
+              "description": "Build id from list_builds."
+            }
+          },
+          "required": [
+            "build_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "save_build",
+        "title": "Save build",
+        "description": "Save a new HTML build version. Provide an existing project_id, or a project_name to create a new project.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "The prompt or description behind this build."
+            },
+            "html": {
+              "type": "string",
+              "description": "Complete self-contained HTML document."
+            },
+            "project_id": {
+              "type": "string",
+              "description": "Existing project id to add this build to."
+            },
+            "project_name": {
+              "type": "string",
+              "description": "Name for a new project when project_id is omitted."
+            },
+            "parent_build_id": {
+              "type": "string",
+              "description": "Build this version branches from."
+            }
+          },
+          "required": [
+            "prompt",
+            "html"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
