@@ -8,9 +8,6 @@ import { lovable } from "@/integrations/lovable";
 import { tap as haptic } from "@/hooks/useHaptic";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    next: typeof s.next === "string" ? s.next : undefined,
-  }),
   head: () => ({
     meta: [
       { title: "Sign in — H4CK3D" },
@@ -24,7 +21,10 @@ type Mode = "signin" | "signup" | "forgot";
 
 function AuthPage() {
   const navigate = useNavigate();
-  const { next } = Route.useSearch();
+  const next =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("next")
+      : null;
   const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
   const goNext = React.useCallback(() => {
     if (safeNext) window.location.href = safeNext;
