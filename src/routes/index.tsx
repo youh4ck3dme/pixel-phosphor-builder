@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Menu, Bell, Plus, Mic, ArrowUp, RefreshCw, ChevronDown,
   Home, Grid3x3, BookText, Settings, Search, BarChart3,
-  Hammer, Workflow, Sparkles,
+  Hammer, Workflow, Sparkles, Wand2,
 } from "lucide-react";
 import { Parallax, Magnetic } from "@/components/phosphor/Parallax";
 import { CountUp } from "@/components/phosphor/CountUp";
@@ -313,7 +313,31 @@ function Composer({
   onSend: () => void;
 }) {
   const [focus, setFocus] = React.useState(false);
+  const [enhancing, setEnhancing] = React.useState(false);
   const placeholder = useRotatingPlaceholder(PROMPT_PLACEHOLDERS, 3000);
+
+  async function magicComplete() {
+    const p = prompt.trim();
+    if (!p || enhancing) return;
+    setEnhancing(true);
+    try {
+      const resp = await fetch("/api/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: p }),
+      });
+      const j = await resp.json();
+      if (!resp.ok) throw new Error(j.error || "Magic failed");
+      setPrompt(j.enhanced);
+      toast.success("Prompt dokončený ✦");
+      tap();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Magic failed");
+    } finally {
+      setEnhancing(false);
+    }
+  }
+
   return (
     <div
       className="rounded-[5px] bg-surface transition-all min-h-0"
@@ -350,6 +374,24 @@ function Composer({
         <Chip>{mode[0].toUpperCase() + mode.slice(1)} <ChevronDown className="size-3" /></Chip>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Magic stick — AI completes the unfinished prompt */}
+          <button
+            aria-label="Magic complete prompt"
+            title="Magic stick — AI dokončí prompt"
+            onClick={magicComplete}
+            disabled={!prompt.trim() || enhancing}
+            className="grid size-9 place-items-center rounded-full hairline transition-opacity disabled:opacity-30"
+            style={{
+              color: "var(--phosphor)",
+              borderColor: enhancing ? "var(--phosphor)" : "var(--border)",
+              boxShadow: enhancing
+                ? "0 0 18px color-mix(in oklab, var(--phosphor) 45%, transparent)"
+                : "none",
+            }}
+          >
+            <Wand2 className={`size-4 ${enhancing ? "animate-pulse" : ""}`} />
+          </button>
+
           {/* Mic — phosphor breathing, scales with real amplitude */}
           <button
             aria-label="Hold to record"
