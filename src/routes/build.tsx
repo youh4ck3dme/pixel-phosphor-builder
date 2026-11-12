@@ -22,8 +22,8 @@ import { previewErrorFromMessage, guardFixPrompt, type PreviewError } from "@/li
 import { tap } from "@/hooks/useHaptic";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { supabase } from "@/integrations/supabase/client";
-import { saveCloudBuild, getBuildById, renameProject } from "@/lib/builds.cloud";
-import { createSnapshot } from "@/lib/snapshots";
+import { saveCloudBuild, getBuildById, renameProject, countBuilds } from "@/lib/builds.cloud";
+import { createSnapshot, listSnapshots } from "@/lib/snapshots";
 import { type PromptPreset } from "@/lib/prompt.presets";
 
 type Search = { q?: string; id?: string };
@@ -81,6 +81,27 @@ function BuildRoute() {
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [runtimeErrors, setRuntimeErrors] = React.useState<PreviewError[]>([]);
+  // Real version telemetry: server-side build count + snapshot count for this project
+  const [realBuildCount, setRealBuildCount] = React.useState<number | null>(null);
+  const [snapshotCount, setSnapshotCount] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    countBuilds(projectId)
+      .then((n) => {
+        if (!cancelled) setRealBuildCount(n);
+      })
+      .catch(() => undefined);
+    listSnapshots(projectId)
+      .then((s) => {
+        if (!cancelled) setSnapshotCount(s.length);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   // Runtime console guard: listen for errors reported by the preview iframe
   React.useEffect(() => {
@@ -256,6 +277,7 @@ function BuildRoute() {
           setProjectId(project.id);
           setParentBuildId(build.id);
           savedId = build.id;
+          setRealBuildCount((c) => (c ?? 0) + 1);
         } catch {
           const localBuild: Build = {
             id: buildId,
@@ -417,6 +439,7 @@ function BuildRoute() {
     try {
       await createSnapshot({ buildId: parentBuildId, projectId, label });
       toast.success("Snapshot saved");
+      setSnapshotCount((c) => (c ?? 0) + 1);
       tap();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Snapshot failed");
@@ -487,7 +510,7 @@ function BuildRoute() {
     <StudioHeader
       title={title}
       onTitleCommit={handleTitleCommit}
-      version={version}
+      version={realBuildCount ?? version}
       streaming={streaming}
       qualityScore={quality ? quality.score : null}
       qualityAlert={
@@ -554,6 +577,8 @@ function BuildRoute() {
       milestonesDone={milestones.size}
       milestonesTotal={MILESTONE_ORDER.length}
       runtimeErrorCount={runtimeErrors.length}
+      buildCount={realBuildCount}
+      snapshotCount={snapshotCount}
     />
   );
 

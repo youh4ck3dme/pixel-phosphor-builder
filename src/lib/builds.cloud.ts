@@ -169,6 +169,38 @@ export async function getLatestProjectPrompt(projectId: string): Promise<string 
   return data?.prompt;
 }
 
+/**
+ * Lightweight metadata of a project's most recent build — no html column.
+ */
+export type LatestBuildMeta = {
+  id: string;
+  prompt: string;
+  model: string;
+  created_at: string;
+};
+
+export async function getLatestBuildMeta(projectId: string): Promise<LatestBuildMeta | null> {
+  const { data, error } = await supabase
+    .from("builds")
+    .select("id, prompt, model, created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as LatestBuildMeta | null) ?? null;
+}
+
+/** Server-side count of builds in a project (head count, no rows downloaded). */
+export async function countBuilds(projectId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("builds")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Duplicate a build (and its prompt+html) into the current user's account as a new project. */
 export async function remixBuild(sourceBuildId: string): Promise<{ project: CloudProject; build: CloudBuild }> {
   const src = await getBuildById(sourceBuildId);

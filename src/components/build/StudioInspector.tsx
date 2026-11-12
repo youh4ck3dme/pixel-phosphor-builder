@@ -51,6 +51,8 @@ export function StudioInspector({
   milestonesDone,
   milestonesTotal,
   runtimeErrorCount,
+  buildCount,
+  snapshotCount,
 }: {
   open: boolean;
   onClose: () => void;
@@ -67,6 +69,8 @@ export function StudioInspector({
   milestonesDone: number;
   milestonesTotal: number;
   runtimeErrorCount: number;
+  buildCount: number | null;
+  snapshotCount: number | null;
 }) {
   return (
     <AnimatePresence>
@@ -173,6 +177,8 @@ export function StudioInspector({
                   <StatRow k="Doc weight" v={`${docKB.toFixed(1)} KB`} />
                   <StatRow k="Latency" v={latencyMs !== null ? `${latencyMs} ms` : "—"} />
                   <StatRow k="Milestones" v={`${milestonesDone}/${milestonesTotal}`} accent={milestonesDone === milestonesTotal} />
+                  <StatRow k="Builds" v={buildCount !== null ? String(buildCount) : "—"} />
+                  <StatRow k="Snapshots" v={snapshotCount !== null ? String(snapshotCount) : "—"} accent={snapshotCount !== null && snapshotCount > 0} />
                   <div className="flex items-baseline justify-between gap-2 py-1">
                     <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Guard</span>
                     <span

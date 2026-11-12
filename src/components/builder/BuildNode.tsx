@@ -6,26 +6,41 @@ type Props = {
   node: BuildTreeNode;
   active?: boolean;
   selected?: boolean;
+  focused?: boolean;
   onOpen?: () => void;
   onBranch?: () => void;
   onSnapshot?: () => void;
   onSelect?: () => void;
+  onFocus?: () => void;
 };
 
-export function BuildNode({ node, active, selected, onOpen, onBranch, onSnapshot, onSelect }: Props) {
+export function BuildNode({
+  node,
+  active,
+  selected,
+  focused,
+  onOpen,
+  onBranch,
+  onSnapshot,
+  onSelect,
+  onFocus,
+}: Props) {
   const time = new Date(node.created_at);
   const ago = formatAgo(time);
 
   return (
     <div
-      className="relative hairline rounded-[5px] bg-surface p-3 transition-colors"
+      onClick={onFocus}
+      className={`relative hairline rounded-[5px] bg-surface p-3 transition-colors ${onFocus ? "cursor-pointer" : ""}`}
       style={{
-        borderColor: active
+        borderColor: focused
+          ? "var(--phosphor)"
+          : active
           ? "var(--phosphor)"
           : selected
           ? "var(--amber)"
           : undefined,
-        boxShadow: active ? "0 0 24px -8px var(--phosphor)" : undefined,
+        boxShadow: focused || active ? "0 0 24px -8px var(--phosphor)" : undefined,
       }}
     >
       {/* Mini preview thumbnail */}

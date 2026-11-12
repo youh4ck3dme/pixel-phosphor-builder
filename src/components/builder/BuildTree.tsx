@@ -11,9 +11,19 @@ type Props = {
   onBranch: (id: string) => void;
   onSnapshot: (id: string) => void;
   onToggleSelect: (id: string) => void;
+  onFocus?: (id: string) => void;
 };
 
-export function BuildTree({ roots, activeId, selectedIds, onOpen, onBranch, onSnapshot, onToggleSelect }: Props) {
+export function BuildTree({
+  roots,
+  activeId,
+  selectedIds,
+  onOpen,
+  onBranch,
+  onSnapshot,
+  onToggleSelect,
+  onFocus,
+}: Props) {
   if (roots.length === 0) {
     return (
       <div className="text-center py-16 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
@@ -34,6 +44,7 @@ export function BuildTree({ roots, activeId, selectedIds, onOpen, onBranch, onSn
           onBranch={onBranch}
           onSnapshot={onSnapshot}
           onToggleSelect={onToggleSelect}
+          onFocus={onFocus}
         />
       ))}
     </ul>
@@ -49,6 +60,7 @@ function TreeRow({
   onBranch,
   onSnapshot,
   onToggleSelect,
+  onFocus,
 }: {
   node: BuildTreeNode;
   index: number;
@@ -58,6 +70,7 @@ function TreeRow({
   onBranch: (id: string) => void;
   onSnapshot: (id: string) => void;
   onToggleSelect: (id: string) => void;
+  onFocus?: (id: string) => void;
 }) {
   return (
     <li className="relative">
@@ -88,10 +101,12 @@ function TreeRow({
             node={node}
             active={activeId === node.id}
             selected={selectedIds.includes(node.id)}
+            focused={onFocus ? activeId === node.id : undefined}
             onOpen={() => onOpen(node.id)}
             onBranch={() => onBranch(node.id)}
             onSnapshot={() => onSnapshot(node.id)}
             onSelect={() => onToggleSelect(node.id)}
+            onFocus={onFocus ? () => onFocus(node.id) : undefined}
           />
         </div>
       </motion.div>
@@ -108,6 +123,7 @@ function TreeRow({
               onBranch={onBranch}
               onSnapshot={onSnapshot}
               onToggleSelect={onToggleSelect}
+              onFocus={onFocus}
             />
           ))}
         </ul>
