@@ -31,6 +31,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment variables — never commit secrets
-.env
+# Local-only env override (real secrets — never tracked). Note: .env itself is
+# tracked on purpose in Lovable Cloud projects: it holds only public client
+# keys required by the Vite build (VITE_SUPABASE_*).
 .env.local
