@@ -1,0 +1,5 @@
+CREATE POLICY "Block guest sessions" ON public.builds AS RESTRICTIVE FOR ALL TO authenticated USING ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE) WITH CHECK ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE);
+CREATE POLICY "Block guest sessions" ON public.profiles AS RESTRICTIVE FOR ALL TO authenticated USING ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE) WITH CHECK ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE);
+CREATE POLICY "Block guest sessions" ON public.projects AS RESTRICTIVE FOR ALL TO authenticated USING ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE) WITH CHECK ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE);
+CREATE POLICY "Block guest sessions" ON public.snapshots AS RESTRICTIVE FOR ALL TO authenticated USING ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE) WITH CHECK ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE);
+CREATE POLICY "Block guest sessions" ON public.user_roles AS RESTRICTIVE FOR ALL TO authenticated USING ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE) WITH CHECK ((auth.jwt() ->> 'is_anonymous')::boolean IS NOT TRUE);
