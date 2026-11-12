@@ -126,6 +126,13 @@ function BuildRoute() {
 
   async function run(userPrompt: string, prevHtml: string) {
     if (!userPrompt.trim()) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      toast.error("Pre generovanie sa prosím prihlás");
+      navigate({ to: "/auth" });
+      return;
+    }
     setStreaming(true);
     setPhase("requesting");
     setBytes(0);
@@ -142,7 +149,7 @@ function BuildRoute() {
     try {
       const resp = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ prompt: userPrompt, prevHtml: prevHtml || undefined, model }),
         signal: ctrl.signal,
       });
@@ -256,11 +263,18 @@ function BuildRoute() {
 
   async function enhancePrompt() {
     if (!prompt.trim() || enhancing) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      toast.error("Pre generovanie sa prosím prihlás");
+      navigate({ to: "/auth" });
+      return;
+    }
     setEnhancing(true);
     try {
       const resp = await fetch("/api/enhance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ prompt: prompt.trim() }),
       });
       const j = await resp.json();

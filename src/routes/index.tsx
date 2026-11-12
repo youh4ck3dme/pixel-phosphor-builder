@@ -315,15 +315,23 @@ function Composer({
   const [focus, setFocus] = React.useState(false);
   const [enhancing, setEnhancing] = React.useState(false);
   const placeholder = useRotatingPlaceholder(PROMPT_PLACEHOLDERS, 3000);
+  const navigate = useNavigate();
 
   async function magicComplete() {
     const p = prompt.trim();
     if (!p || enhancing) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      toast.error("Pre generovanie sa prosím prihlás");
+      navigate({ to: "/auth" });
+      return;
+    }
     setEnhancing(true);
     try {
       const resp = await fetch("/api/enhance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ prompt: p }),
       });
       const j = await resp.json();

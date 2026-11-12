@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SYSTEM_PROMPT, resolveProvider, type ModelKey } from "@/lib/ai";
+import { verifyAuthUser, unauthorizedResponse } from "@/lib/server-auth";
 
 type Body = {
   prompt: string;
@@ -11,6 +12,12 @@ export const Route = createFileRoute("/api/generate")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // Auth guard — no anonymous or unauthenticated AI generation
+        const user = await verifyAuthUser(request);
+        if (!user) {
+          return unauthorizedResponse("Unauthorized: Sign in required to generate code");
+        }
+
         let body: Body;
         try {
           body = (await request.json()) as Body;

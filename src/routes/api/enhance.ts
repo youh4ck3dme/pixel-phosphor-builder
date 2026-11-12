@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { resolveProvider } from "@/lib/ai";
+import { verifyAuthUser, unauthorizedResponse } from "@/lib/server-auth";
 
 type Body = { prompt: string };
 
@@ -20,6 +21,12 @@ export const Route = createFileRoute("/api/enhance")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // Auth guard — no anonymous or unauthenticated prompt enhancement
+        const user = await verifyAuthUser(request);
+        if (!user) {
+          return unauthorizedResponse("Unauthorized: Sign in required to enhance prompts");
+        }
+
         let body: Body;
         try {
           body = (await request.json()) as Body;
