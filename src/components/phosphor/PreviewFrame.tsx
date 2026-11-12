@@ -1,4 +1,13 @@
 import * as React from "react";
+import { PREVIEW_CAPTURE_SCRIPT } from "@/lib/preview.errors";
+
+function injectCapture(html: string): string {
+  if (!html.trim()) return html;
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, (m) => m + PREVIEW_CAPTURE_SCRIPT);
+  }
+  return PREVIEW_CAPTURE_SCRIPT + html;
+}
 
 export function PreviewFrame({ html }: { html: string }) {
   const [doc, setDoc] = React.useState(html);
@@ -18,7 +27,7 @@ export function PreviewFrame({ html }: { html: string }) {
       ) : (
         <iframe
           title="Preview"
-          srcDoc={doc}
+          srcDoc={injectCapture(doc)}
           sandbox="allow-scripts"
           className="h-full w-full border-0 bg-white"
         />

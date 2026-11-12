@@ -41,6 +41,7 @@ export function StudioHeader({
   version,
   streaming,
   qualityScore,
+  qualityAlert,
   designerBusy,
   canDesigner,
   onDesignerPass,
@@ -67,6 +68,7 @@ export function StudioHeader({
   version: number;
   streaming: boolean;
   qualityScore: number | null;
+  qualityAlert: boolean;
   designerBusy: boolean;
   canDesigner: boolean;
   onDesignerPass: () => void;
@@ -173,12 +175,18 @@ export function StudioHeader({
       {/* Center: quality health badge */}
       {qualityScore !== null && (
         <button
-          aria-label={`Quality score ${qualityScore}`}
-          className="hidden shrink-0 items-center gap-1 rounded-[5px] hairline bg-surface px-2 py-1 font-mono text-[10px] sm:flex"
+          aria-label={`Quality score ${qualityScore}${qualityAlert ? " — runtime errors detected" : ""}`}
+          className="relative hidden shrink-0 items-center gap-1 rounded-[5px] hairline bg-surface px-2 py-1 font-mono text-[10px] sm:flex"
           style={{ color: qualityScore >= 80 ? "var(--phosphor)" : "var(--amber)" }}
         >
           <Gauge className="size-3.5" />
           {qualityScore}
+          {qualityAlert && (
+            <span
+              className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-amber"
+              style={{ boxShadow: "0 0 6px var(--amber)" }}
+            />
+          )}
         </button>
       )}
 

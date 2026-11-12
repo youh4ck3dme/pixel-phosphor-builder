@@ -17,7 +17,8 @@ import { StudioCommandPalette } from "@/components/build/StudioCommandPalette";
 import { detectMilestones, MILESTONE_ORDER, type Milestone } from "@/lib/html.milestones";
 import { auditHtml } from "@/lib/html.quality";
 import { exportBuildZip } from "@/lib/export.zip";
-import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/lib/storage";
+import { saveBuild, newId, getBuild, getModel, setModel, getTemperature, setTemperature, getMaxTokens, setMaxTokens, type Build } from "@/lib/storage";
+import { previewErrorFromMessage, guardFixPrompt, type PreviewError } from "@/lib/preview.errors";
 import { tap } from "@/hooks/useHaptic";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,11 +75,26 @@ function BuildRoute() {
   const [previewOpen, setPreviewOpen] = React.useState(true);
   const [inspectorOpen, setInspectorOpen] = React.useState(false);
   const [version, setVersion] = React.useState(1);
-  const [temperature, setTemperature] = React.useState(0.7);
-  const [maxTokens, setMaxTokens] = React.useState(8192);
+  const [temperature, setTemperature] = React.useState<number>(() => getTemperature());
+  const [maxTokens, setMaxTokens] = React.useState<number>(() => getMaxTokens());
   const [latencyMs, setLatencyMs] = React.useState<number | null>(null);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const [runtimeErrors, setRuntimeErrors] = React.useState<PreviewError[]>([]);
+
+  // Runtime console guard: listen for errors reported by the preview iframe
+  React.useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const err = previewErrorFromMessage(e.data);
+      if (!err) return;
+      setRuntimeErrors((list) => {
+        if (list.some((x) => x.key === err.key)) return list;
+        return [err, ...list].slice(0, 20);
+      });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   // Tick elapsed time while streaming
   React.useEffect(() => {
@@ -158,6 +174,7 @@ function BuildRoute() {
     startTimeRef.current = Date.now();
     setCode("");
     setMilestones(new Set());
+    setRuntimeErrors([]);
     setTitle(userPrompt.slice(0, 40));
     setHistory((h) => [{ text: userPrompt, at: Date.now() }, ...h].slice(0, 20));
     setLeftMode("code");
@@ -432,6 +449,16 @@ function BuildRoute() {
     toast.message(`Model: ${m === "flash" ? "Mistral Small" : "Mistral Large"}`);
   }
 
+  function changeTemperature(t: number) {
+    setTemperature(t);
+    setTemperature(t);
+  }
+
+  function changeMaxTokens(n: number) {
+    setMaxTokens(n);
+    setMaxTokens(n);
+  }
+
   // Quality score, recomputed after streaming settles (never mid-stream)
   const quality = React.useMemo(() => {
     if (!code || streaming) return null;
@@ -463,6 +490,9 @@ function BuildRoute() {
       version={version}
       streaming={streaming}
       qualityScore={quality ? quality.score : null}
+      qualityAlert={
+        phase === "done" && runtimeErrors.length > 0
+      }
       designerBusy={designerBusy}
       canDesigner={!!code}
       onDesignerPass={designerPass}
@@ -514,15 +544,16 @@ function BuildRoute() {
       model={model}
       onModelChange={changeModel}
       temperature={temperature}
-      onTemperatureChange={setTemperature}
+      onTemperatureChange={changeTemperature}
       maxTokens={maxTokens}
-      onMaxTokens={setMaxTokens}
+      onMaxTokens={changeMaxTokens}
       streaming={streaming}
       phase={phase}
       docKB={docKB}
       latencyMs={latencyMs}
       milestonesDone={milestones.size}
       milestonesTotal={MILESTONE_ORDER.length}
+      runtimeErrorCount={runtimeErrors.length}
     />
   );
 
@@ -573,7 +604,7 @@ function BuildRoute() {
           <div className="flex items-center gap-1 px-3 py-2 hairline-bottom min-h-0">
             <TabBtn active={tab === "preview"} onClick={() => setTab("preview")} icon={Eye} label="Preview" />
             <TabBtn active={tab === "code"} onClick={() => setTab("code")} icon={Code2} label="Code" />
-            <TabBtn active={tab === "quality"} onClick={() => setTab("quality")} icon={Gauge} label="Quality" />
+            <TabBtn active={tab === "quality"} onClick={() => setTab("quality")} icon={Gauge} label="Quality" alert={phase === "done" && runtimeErrors.length > 0} />
             <div className="ml-auto flex items-center gap-2">
               {tab === "preview" && <ViewportSwitcher value={viewport} onChange={setViewport} />}
               {streaming && (
@@ -600,7 +631,7 @@ function BuildRoute() {
                 <PreviewFrame html={code} />
               </ViewportWrap>
             ) : tab === "quality" ? (
-              <QualityPanel html={code} onFix={onFix} />
+              <QualityPanel html={code} runtimeErrors={runtimeErrors} onFix={onFix} />
             ) : (
               <CodePane code={code} streaming={streaming} />
             )}
@@ -619,7 +650,7 @@ function BuildRoute() {
       <div className="flex shrink-0 items-center gap-1 px-3 py-1.5 hairline-bottom">
         <TabBtn active={leftMode === "code"} onClick={() => setLeftMode("code")} icon={Code2} label="Code" />
         <TabBtn active={leftMode === "stream"} onClick={() => setLeftMode("stream")} icon={Eye} label="Stream" />
-        <TabBtn active={leftMode === "quality"} onClick={() => setLeftMode("quality")} icon={Gauge} label="Quality" />
+        <TabBtn active={leftMode === "quality"} onClick={() => setLeftMode("quality")} icon={Gauge} label="Quality" alert={phase === "done" && runtimeErrors.length > 0} />
         {streaming && (
           <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-phosphor">
             <span className="size-1.5 rounded-full bg-phosphor animate-phosphor" />
@@ -630,7 +661,7 @@ function BuildRoute() {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {leftMode === "code" && <CodePane code={code} streaming={streaming} />}
-        {leftMode === "quality" && <QualityPanel html={code} onFix={onFix} />}
+        {leftMode === "quality" && <QualityPanel html={code} runtimeErrors={runtimeErrors} onFix={onFix} />}
         {leftMode === "stream" && (
           <div className="h-full overflow-y-auto no-scrollbar">
             <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
@@ -756,17 +787,18 @@ function ViewportWrap({
 }
 
 function TabBtn({
-  active, onClick, icon: Icon, label,
+  active, onClick, icon: Icon, label, alert,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
+  alert?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors"
+      className="relative flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors"
       style={{
         color: active ? "var(--amber)" : "var(--muted-foreground)",
         borderBottom: active ? "2px solid var(--amber)" : "2px solid transparent",
@@ -774,6 +806,13 @@ function TabBtn({
     >
       <Icon className="size-3.5" />
       {label}
+      {alert && (
+        <span
+          className="absolute right-0.5 top-0 size-1.5 rounded-full bg-amber"
+          style={{ boxShadow: "0 0 6px var(--amber)" }}
+          aria-label="runtime errors detected"
+        />
+      )}
     </button>
   );
 }

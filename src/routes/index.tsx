@@ -13,6 +13,7 @@ import { useRotatingPlaceholder } from "@/hooks/useRotatingPlaceholder";
 import { tap } from "@/hooks/useHaptic";
 import { supabase } from "@/integrations/supabase/client";
 import { migrateLocalBuildsIfNeeded } from "@/lib/builds.cloud";
+import { getModelUsage, usagePercent, formatTokens, MODEL_TOKEN_CAPS } from "@/lib/usage.telemetry";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -71,6 +72,7 @@ const AI_MODELS = [
     name: "Mistral Small 3",
     initials: "MS",
     badge: "Flash",
+    quotaKey: "flash",
     desc: "Ultra-fast code generation & micro-diffs",
     tokensUsed: "820K",
     tokensTotal: "1.0M",
@@ -84,6 +86,7 @@ const AI_MODELS = [
     name: "Mistral Large 2",
     initials: "ML",
     badge: "Pro",
+    quotaKey: "pro",
     desc: "Deep reasoning, full-app architecture & AST safety",
     tokensUsed: "450K",
     tokensTotal: "1.0M",
@@ -131,6 +134,37 @@ function PhosphorHome() {
   const [authed, setAuthed] = React.useState(false);
   const [initial, setInitial] = React.useState("A");
   const [focusSignal, setFocusSignal] = React.useState(0);
+  // Real per-model token usage (null until loaded; guests keep static mockup)
+  const [usageMap, setUsageMap] = React.useState<Map<string, number> | null>(null);
+
+  const effectiveModels = React.useMemo(() => {
+    if (!usageMap) return AI_MODELS;
+    return AI_MODELS.map((m) => {
+      if (!m.quotaKey) return m;
+      const used = usageMap.get(m.quotaKey);
+      if (used === undefined) return { ...m, tokensUsed: "0K", percent: 0 };
+      return {
+        ...m,
+        tokensUsed: formatTokens(used),
+        tokensTotal: formatTokens(MODEL_TOKEN_CAPS[m.quotaKey] ?? 1_000_000),
+        percent: usagePercent(m.quotaKey, used),
+      };
+    });
+  }, [usageMap]);
+
+  React.useEffect(() => {
+    if (!authed) return;
+    let cancelled = false;
+    getModelUsage().then((usage) => {
+      if (cancelled) return;
+      setUsageMap(new Map(usage.map((u) => [u.model, u.tokensUsed])));
+    }).catch(() => {
+      /* keep static mockup on failure */
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authed]);
 
   // Track auth + run one-time local→cloud migration on first authed mount
   React.useEffect(() => {
@@ -234,7 +268,7 @@ function PhosphorHome() {
           <ModeTabs mode={mode} setMode={setMode} />
           <Hero />
           <Suggestions mode={mode} onPick={(s) => submitPrompt(s)} />
-          <ModelsTelemetryList onPick={(m) => pickModelStarter(m.starter)} />
+          <ModelsTelemetryList models={effectiveModels} onPick={(m) => pickModelStarter(m.starter)} />
           <KpiStrip />
         </div>
 
@@ -592,7 +626,13 @@ function KpiStrip() {
 }
 
 /* ──────────────── AI models & token quota telemetry ──────────────── */
-function ModelsTelemetryList({ onPick }: { onPick: (m: (typeof AI_MODELS)[number]) => void }) {
+function ModelsTelemetryList({
+  models,
+  onPick,
+}: {
+  models: typeof AI_MODELS;
+  onPick: (m: (typeof AI_MODELS)[number]) => void;
+}) {
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between">
@@ -606,7 +646,7 @@ function ModelsTelemetryList({ onPick }: { onPick: (m: (typeof AI_MODELS)[number
         className="mt-1.5 flex-1 min-h-0 divide-y divide-[color:var(--border)] overflow-y-auto rounded-[5px] bg-surface hairline no-scrollbar"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        {AI_MODELS.map((m) => (
+        {models.map((m) => (
           <li key={m.id}>
             <button
               onClick={() => onPick(m)}

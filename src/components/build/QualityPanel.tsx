@@ -1,11 +1,14 @@
 import * as React from "react";
 import { auditHtml, type QualityCheck } from "@/lib/html.quality";
+import { guardFixPrompt, type PreviewError } from "@/lib/preview.errors";
 
 export function QualityPanel({
   html,
+  runtimeErrors,
   onFix,
 }: {
   html: string;
+  runtimeErrors?: PreviewError[];
   onFix: (fixPrompt: string) => void;
 }) {
   const report = React.useMemo(() => auditHtml(html), [html]);
@@ -19,6 +22,8 @@ export function QualityPanel({
       </div>
     );
   }
+
+  const errors = runtimeErrors ?? [];
 
   const groups: { key: QualityCheck["category"]; label: string }[] = [
     { key: "a11y", label: "Accessibility" },
@@ -75,6 +80,36 @@ export function QualityPanel({
                 ),
             )}
           </div>
+        </div>
+      )}
+
+      {errors.length > 0 && (
+        <div className="mt-3">
+          <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+            guard · runtime
+            <span
+              className="size-1.5 rounded-full"
+              style={{ background: "var(--destructive, #ef4444)", boxShadow: "0 0 6px var(--destructive, #ef4444)" }}
+            />
+            <span style={{ color: "var(--destructive, #ef4444)" }}>{errors.length}</span>
+          </div>
+          <ul className="mt-1.5 divide-y divide-white/5 rounded-[5px] bg-surface hairline">
+            {errors.map((e) => (
+              <li key={e.key} className="px-2.5 py-1.5">
+                <div className="truncate font-mono text-[11px] text-foreground/85" title={e.message}>
+                  {e.lineno ? `L${e.lineno}: ` : ""}{e.message}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onFix(guardFixPrompt(e))}
+                  className="mt-1 rounded-[5px] px-2 py-1 font-mono text-[10px] tracking-wide transition-colors"
+                  style={{ background: "var(--amber-dim)", color: "var(--amber)" }}
+                >
+                  fix · runtime guard
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

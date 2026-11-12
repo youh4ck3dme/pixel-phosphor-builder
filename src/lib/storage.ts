@@ -43,3 +43,25 @@ export function setModel(m: "flash" | "pro") {
   if (typeof window === "undefined") return;
   localStorage.setItem(MODEL_KEY, m);
 }
+
+const TEMPERATURE_KEY = "h4ckd:temperature";
+export function getTemperature(): number {
+  if (typeof window === "undefined") return 0.7;
+  const v = Number(localStorage.getItem(TEMPERATURE_KEY));
+  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.7;
+}
+export function setTemperature(t: number) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TEMPERATURE_KEY, String(t));
+}
+
+const MAX_TOKENS_KEY = "h4ckd:maxTokens";
+export function getMaxTokens(): number {
+  if (typeof window === "undefined") return 8192;
+  const v = Number(localStorage.getItem(MAX_TOKENS_KEY));
+  return Number.isFinite(v) && v >= 256 && v <= 16384 ? Math.round(v) : 8192;
+}
+export function setMaxTokens(n: number) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(MAX_TOKENS_KEY, String(Math.round(n)));
+}

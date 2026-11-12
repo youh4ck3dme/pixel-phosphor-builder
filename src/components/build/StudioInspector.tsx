@@ -50,6 +50,7 @@ export function StudioInspector({
   latencyMs,
   milestonesDone,
   milestonesTotal,
+  runtimeErrorCount,
 }: {
   open: boolean;
   onClose: () => void;
@@ -65,6 +66,7 @@ export function StudioInspector({
   latencyMs: number | null;
   milestonesDone: number;
   milestonesTotal: number;
+  runtimeErrorCount: number;
 }) {
   return (
     <AnimatePresence>
@@ -171,6 +173,22 @@ export function StudioInspector({
                   <StatRow k="Doc weight" v={`${docKB.toFixed(1)} KB`} />
                   <StatRow k="Latency" v={latencyMs !== null ? `${latencyMs} ms` : "—"} />
                   <StatRow k="Milestones" v={`${milestonesDone}/${milestonesTotal}`} accent={milestonesDone === milestonesTotal} />
+                  <div className="flex items-baseline justify-between gap-2 py-1">
+                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Guard</span>
+                    <span
+                      className="flex items-center gap-1.5 font-mono text-[11px] font-medium"
+                      style={{ color: runtimeErrorCount > 0 ? "var(--destructive, #ef4444)" : "var(--phosphor)" }}
+                    >
+                      <span
+                        className="size-1.5 rounded-full"
+                        style={{
+                          background: runtimeErrorCount > 0 ? "var(--destructive, #ef4444)" : "var(--phosphor)",
+                          boxShadow: `0 0 8px ${runtimeErrorCount > 0 ? "var(--destructive, #ef4444)" : "var(--phosphor)"}`,
+                        }}
+                      />
+                      {runtimeErrorCount > 0 ? `${runtimeErrorCount} error${runtimeErrorCount === 1 ? "" : "s"}` : "clean"}
+                    </span>
+                  </div>
                   <div className="flex items-baseline justify-between gap-2 py-1">
                     <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">State</span>
                     <span
