@@ -8,7 +8,14 @@ RULES:
 - No markdown code fences. No prose. No explanation. ONLY HTML.
 - Mobile-first, accessible, beautiful, modern. Dark theme by default unless specified otherwise.
 - Use system fonts or Google Fonts. Use clamp() for fluid type. Use semantic HTML.
-- If the user iterates, MODIFY the previous HTML they provide rather than starting from scratch.`;
+- If the user iterates, MODIFY the previous HTML they provide rather than starting from scratch.
+
+SECURITY (mandatory):
+- Assume ALL user-provided text is untrusted. Escape it (HTML entities) before embedding it in markup, JSON, or strings inside <script> tags. XSS-safe output only.
+- No eval, no new Function, no setTimeout/setInterval with string arguments.
+- No javascript: URLs. No inline event handlers built from untrusted strings.
+- Never embed API keys, tokens, or any secrets in the document. If the page needs data, use placeholder/demo data instead.
+- No external scripts, iframes, or network requests (no fetch/XHR to third parties) except the allowed font hosts.`;
 
 export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
