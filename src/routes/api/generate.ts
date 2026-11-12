@@ -88,8 +88,10 @@ export const Route = createFileRoute("/api/generate")({
                   let line = buf.slice(0, idx);
                   buf = buf.slice(idx + 1);
                   if (line.endsWith("\r")) line = line.slice(0, -1);
-                  if (!line.startsWith("data: ")) continue;
-                  const data = line.slice(6).trim();
+                  // Skip empty lines and SSE comments/pings (e.g. ": keep-alive").
+                  if (!line.startsWith("data:")) continue;
+                  const data = line.slice(5).trim();
+                  if (!data) continue;
                   if (data === "[DONE]") {
                     controller.close();
                     return;
@@ -101,9 +103,12 @@ export const Route = createFileRoute("/api/generate")({
                       controller.enqueue(encoder.encode(delta));
                     }
                   } catch {
-                    /* partial JSON — push back */
-                    buf = line + "\n" + buf;
-                    break;
+                    // Malformed JSON on a complete line — drop it instead of
+                    // pushing it back into the buffer (which would loop forever).
+                    console.warn(
+                      "[generate] Skipping malformed SSE data line:",
+                      data.slice(0, 120),
+                    );
                   }
                 }
               }

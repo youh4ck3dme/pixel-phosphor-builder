@@ -154,6 +154,21 @@ export async function getLatestBuildForProject(projectId: string): Promise<Cloud
   return (data as CloudBuild | null) ?? null;
 }
 
+/**
+ * Fetch only the prompt of a project's most recent build.
+ * Avoids downloading the heavy html column just to show a preview line.
+ */
+export async function getLatestProjectPrompt(projectId: string): Promise<string | undefined> {
+  const { data } = await supabase
+    .from("builds")
+    .select("prompt")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.prompt;
+}
+
 /** Duplicate a build (and its prompt+html) into the current user's account as a new project. */
 export async function remixBuild(sourceBuildId: string): Promise<{ project: CloudProject; build: CloudBuild }> {
   const src = await getBuildById(sourceBuildId);

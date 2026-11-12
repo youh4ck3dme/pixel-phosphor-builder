@@ -81,27 +81,17 @@ function RootComponent() {
       if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "0"].includes(e.key)) e.preventDefault();
     };
     const onWheel = (e: WheelEvent) => { if (e.ctrlKey || e.metaKey) e.preventDefault(); };
-    let lastTouch = 0;
-    const onTouchEnd = (e: TouchEvent) => {
-      const now = Date.now();
-      if (now - lastTouch <= 300) e.preventDefault();
-      lastTouch = now;
-    };
     document.addEventListener("gesturestart", prevent as EventListener);
     document.addEventListener("gesturechange", prevent as EventListener);
     document.addEventListener("gestureend", prevent as EventListener);
-    document.addEventListener("dblclick", prevent);
     document.addEventListener("keydown", onKey);
     document.addEventListener("wheel", onWheel, { passive: false });
-    document.addEventListener("touchend", onTouchEnd, { passive: false });
     return () => {
       document.removeEventListener("gesturestart", prevent as EventListener);
       document.removeEventListener("gesturechange", prevent as EventListener);
       document.removeEventListener("gestureend", prevent as EventListener);
-      document.removeEventListener("dblclick", prevent);
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("wheel", onWheel);
-      document.removeEventListener("touchend", onTouchEnd);
     };
   }, []);
   return <Outlet />;

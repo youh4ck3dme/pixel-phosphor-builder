@@ -5,7 +5,13 @@ import { ArrowLeft, Plus, Trash2, Loader2, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { listProjects, listBuilds, deleteProject, type CloudProject } from "@/lib/builds.cloud";
+import {
+  listProjects,
+  listBuilds,
+  getLatestProjectPrompt,
+  deleteProject,
+  type CloudProject,
+} from "@/lib/builds.cloud";
 import { tap } from "@/hooks/useHaptic";
 
 export const Route = createFileRoute("/projects")({
@@ -30,12 +36,12 @@ function ProjectsPage() {
     setLoading(true);
     try {
       const projs = await listProjects();
-      // fetch latest build prompt per project (small N — fine to do in parallel)
+      // fetch latest build prompt per project — prompt-only query, no html column
       const enriched = await Promise.all(
         projs.map(async (p) => {
           try {
-            const builds = await listBuilds(p.id);
-            return { ...p, lastPrompt: builds[0]?.prompt };
+            const lastPrompt = await getLatestProjectPrompt(p.id);
+            return { ...p, lastPrompt };
           } catch {
             return p;
           }
@@ -104,7 +110,7 @@ function ProjectsPage() {
         </Link>
       </header>
 
-      <div className="flex-1 mx-auto w-full max-w-[640px] px-3 py-4">
+      <div className="flex-1 mx-auto w-full max-w-[640px] px-3 py-4 overflow-y-auto min-h-0">
         {loading && (
           <div aria-busy="true" aria-live="polite">
             <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3 inline-flex items-center gap-2">

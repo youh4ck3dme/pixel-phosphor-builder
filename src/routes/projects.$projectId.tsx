@@ -138,7 +138,7 @@ function ProjectDetail() {
         </Link>
       </header>
 
-      <div className="flex-1 mx-auto w-full max-w-[640px] px-3 py-3">
+      <div className="flex-1 mx-auto w-full max-w-[640px] px-3 py-3 overflow-y-auto min-h-0">
         {loading && (
           <div className="grid place-items-center py-20">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
