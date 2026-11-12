@@ -1,9 +1,7 @@
 import * as React from "react";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft, Download, RotateCw, Copy, ArrowUp, Code2, Eye, ChevronDown,
-  Star, GitBranch, Square, Sparkles, Gauge, Wand2, Package,
-} from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Group, Panel, Separator } from "react-resizable-panels";
+import { Code2, Eye, Gauge } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { PreviewFrame } from "@/components/phosphor/PreviewFrame";
@@ -12,14 +10,19 @@ import { StreamProgress, type StreamPhase } from "@/components/phosphor/StreamPr
 import { StreamTimeline } from "@/components/build/StreamTimeline";
 import { ViewportSwitcher, VIEWPORT_WIDTH, type ViewportKey } from "@/components/build/ViewportSwitcher";
 import { QualityPanel } from "@/components/build/QualityPanel";
-import { SlashMenu } from "@/components/build/SlashMenu";
-import { detectMilestones, type Milestone } from "@/lib/html.milestones";
+import { StudioHeader } from "@/components/build/StudioHeader";
+import { StudioInspector } from "@/components/build/StudioInspector";
+import { StudioComposer } from "@/components/build/StudioComposer";
+import { detectMilestones, MILESTONE_ORDER, type Milestone } from "@/lib/html.milestones";
+import { auditHtml } from "@/lib/html.quality";
 import { exportBuildZip } from "@/lib/export.zip";
 import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/lib/storage";
 import { tap } from "@/hooks/useHaptic";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { saveCloudBuild, getBuildById } from "@/lib/builds.cloud";
 import { createSnapshot } from "@/lib/snapshots";
+import { type PromptPreset } from "@/lib/prompt.presets";
 
 type Search = { q?: string; id?: string };
 
@@ -37,11 +40,16 @@ export const Route = createFileRoute("/build")({
   component: BuildRoute,
 });
 
+type LeftMode = "code" | "stream" | "quality";
+type HistoryEntry = { text: string; at: number };
+
 function BuildRoute() {
   const search = Route.useSearch();
   const navigate = useNavigate();
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   const [tab, setTab] = React.useState<"preview" | "code" | "quality">("preview");
+  const [leftMode, setLeftMode] = React.useState<LeftMode>("code");
   const [viewport, setViewport] = React.useState<ViewportKey>("mobile");
   const [code, setCode] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
@@ -62,6 +70,13 @@ function BuildRoute() {
   const [enhancing, setEnhancing] = React.useState(false);
   const [designerBusy, setDesignerBusy] = React.useState(false);
   const [showSlash, setShowSlash] = React.useState(false);
+  const [previewOpen, setPreviewOpen] = React.useState(true);
+  const [inspectorOpen, setInspectorOpen] = React.useState(false);
+  const [version, setVersion] = React.useState(1);
+  const [temperature, setTemperature] = React.useState(0.7);
+  const [maxTokens, setMaxTokens] = React.useState(8192);
+  const [latencyMs, setLatencyMs] = React.useState<number | null>(null);
+  const [history, setHistory] = React.useState<HistoryEntry[]>([]);
 
   // Tick elapsed time while streaming
   React.useEffect(() => {
@@ -122,7 +137,7 @@ function BuildRoute() {
       void run(search.q, "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search.q]);
+  }, [search.q, isDesktop]);
 
   async function run(userPrompt: string, prevHtml: string) {
     if (!userPrompt.trim()) return;
@@ -137,10 +152,13 @@ function BuildRoute() {
     setPhase("requesting");
     setBytes(0);
     setElapsedMs(0);
+    setLatencyMs(null);
     startTimeRef.current = Date.now();
     setCode("");
     setMilestones(new Set());
     setTitle(userPrompt.slice(0, 40));
+    setHistory((h) => [{ text: userPrompt, at: Date.now() }, ...h].slice(0, 20));
+    setLeftMode("code");
     setTab("code");
     abortRef.current?.abort();
     const ctrl = new AbortController();
@@ -171,11 +189,16 @@ function BuildRoute() {
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let acc = "";
-      // Switch to preview after a small head start so user sees rendering happen
+      let firstChunk = true;
+      // Switch mobile tab to preview after a small head start so user sees rendering happen
       let switched = false;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        if (firstChunk) {
+          firstChunk = false;
+          setLatencyMs(Date.now() - startTimeRef.current);
+        }
         const chunk = decoder.decode(value, { stream: true });
         acc += chunk;
         setCode(acc);
@@ -208,8 +231,7 @@ function BuildRoute() {
           setProjectId(project.id);
           setParentBuildId(build.id);
           savedId = build.id;
-        } catch (err) {
-          // Fall back to local
+        } catch {
           const localBuild: Build = {
             id: buildId,
             prompt: userPrompt,
@@ -233,6 +255,7 @@ function BuildRoute() {
       navigate({ to: "/build", search: { id: savedId }, replace: true });
       setElapsedMs(Date.now() - startTimeRef.current);
       setPhase("done");
+      setVersion((v) => v + 1);
       toast.success("Build complete");
       tap(12);
     } catch (e: any) {
@@ -347,6 +370,34 @@ function BuildRoute() {
     }
   }
 
+  async function share() {
+    const id = parentBuildId ?? buildId;
+    const url = id ? `${window.location.origin}/build?id=${id}` : window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Build link copied");
+      tap();
+    } catch {
+      toast.error("Copy failed");
+    }
+  }
+
+  async function snapshot() {
+    if (!projectId || !parentBuildId) {
+      toast.message("Save a build first");
+      return;
+    }
+    const label = window.prompt("Snapshot label", title.slice(0, 40));
+    if (!label) return;
+    try {
+      await createSnapshot({ buildId: parentBuildId, projectId, label });
+      toast.success("Snapshot saved");
+      tap();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Snapshot failed");
+    }
+  }
+
   function submit() {
     if (!prompt.trim() || streaming) return;
     const p = prompt.trim();
@@ -358,17 +409,233 @@ function BuildRoute() {
 
   function onPromptChange(v: string) {
     setPrompt(v);
-    // Slash menu trigger: first chars start with "/" and no space yet
     const first = v.trimStart();
     setShowSlash(first.startsWith("/") && !first.includes(" "));
   }
 
-  function toggleModel() {
-    const next = model === "flash" ? "pro" : "flash";
-    setModelState(next);
-    setModel(next);
-    toast.message(`Model: ${next === "flash" ? "Flash" : "Pro"}`);
+  function onPickPreset(p: PromptPreset) {
+    setPrompt(p.template);
+    setShowSlash(false);
   }
+
+  function changeModel(m: "flash" | "pro") {
+    setModelState(m);
+    setModel(m);
+    toast.message(`Model: ${m === "flash" ? "Mistral Small" : "Mistral Large"}`);
+  }
+
+  // Quality score, recomputed after streaming settles (never mid-stream)
+  const quality = React.useMemo(() => {
+    if (!code || streaming) return null;
+    try {
+      return auditHtml(code);
+    } catch {
+      return null;
+    }
+  }, [code, streaming]);
+
+  const docKB = bytes / 1024;
+
+  const header = (
+    <StudioHeader
+      title={title}
+      onTitleCommit={setTitle}
+      version={version}
+      streaming={streaming}
+      qualityScore={quality ? quality.score : null}
+      designerBusy={designerBusy}
+      canDesigner={!!code}
+      onDesignerPass={designerPass}
+      onStop={stopStream}
+      canRegenerate={!!(search.q || prompt || title) && !streaming}
+      onRegenerate={regenerate}
+      canExport={!!code}
+      onDownloadHtml={download}
+      onDownloadZip={downloadZip}
+      onCopy={copy}
+      onShare={share}
+      canSnapshot={!!(parentBuildId && projectId)}
+      onSnapshot={snapshot}
+      projectId={projectId}
+      showSplitToggle={isDesktop}
+      previewOpen={previewOpen}
+      onTogglePreview={() => setPreviewOpen((o) => !o)}
+      inspectorOpen={inspectorOpen}
+      onToggleInspector={() => setInspectorOpen((o) => !o)}
+    />
+  );
+
+  const inspector = (
+    <StudioInspector
+      open={inspectorOpen}
+      onClose={() => setInspectorOpen(false)}
+      model={model}
+      onModelChange={changeModel}
+      temperature={temperature}
+      onTemperatureChange={setTemperature}
+      maxTokens={maxTokens}
+      onMaxTokens={setMaxTokens}
+      streaming={streaming}
+      docKB={docKB}
+      latencyMs={latencyMs}
+      milestonesDone={milestones.size}
+      milestonesTotal={MILESTONE_ORDER.length}
+    />
+  );
+
+  const composer = (
+    <StudioComposer
+      prompt={prompt}
+      onPromptChange={onPromptChange}
+      onSubmit={submit}
+      onEnhance={enhancePrompt}
+      enhancing={enhancing}
+      streaming={streaming}
+      showSlash={showSlash}
+      onPickPreset={onPickPreset}
+      onCloseSlash={() => setShowSlash(false)}
+      placeholder={code ? "Iterate, or type / for presets" : "Describe what to build (try /landing)…"}
+    />
+  );
+
+  const onFix = (fix: string) => {
+    setPrompt(fix);
+    setTab("preview");
+    setLeftMode("code");
+  };
+
+  // ─── Mobile: tabbed layout (< 1024px) ───
+  if (!isDesktop) {
+    return (
+      <div
+        className="relative bg-background text-foreground overflow-hidden"
+        style={{ height: "100dvh", width: "100vw" }}
+      >
+        <Toaster theme="dark" position="top-center" />
+        {inspector}
+        <div
+          className="relative mx-auto grid h-full w-full max-w-[640px] min-h-0"
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingLeft: "max(env(safe-area-inset-left), 0px)",
+            paddingRight: "max(env(safe-area-inset-right), 0px)",
+            gridTemplateRows: "auto auto auto 1fr auto",
+            rowGap: 0,
+          }}
+        >
+          {header}
+
+          {/* Tabs */}
+          <div className="flex items-center gap-1 px-3 py-2 hairline-bottom min-h-0">
+            <TabBtn active={tab === "preview"} onClick={() => setTab("preview")} icon={Eye} label="Preview" />
+            <TabBtn active={tab === "code"} onClick={() => setTab("code")} icon={Code2} label="Code" />
+            <TabBtn active={tab === "quality"} onClick={() => setTab("quality")} icon={Gauge} label="Quality" />
+            <div className="ml-auto flex items-center gap-2">
+              {tab === "preview" && <ViewportSwitcher value={viewport} onChange={setViewport} />}
+              {streaming && (
+                <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-phosphor">
+                  <span className="size-1.5 rounded-full bg-phosphor animate-phosphor" />
+                  stream
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Stream progress + milestones */}
+          <div>
+            <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
+            {(streaming || milestones.size > 0) && (
+              <StreamTimeline reached={milestones} active={streaming} />
+            )}
+          </div>
+
+          {/* Stage */}
+          <main className="relative min-h-0 overflow-hidden">
+            {tab === "preview" ? (
+              <ViewportWrap viewport={viewport}>
+                <PreviewFrame html={code} />
+              </ViewportWrap>
+            ) : tab === "quality" ? (
+              <QualityPanel html={code} onFix={onFix} />
+            ) : (
+              <CodePane code={code} streaming={streaming} />
+            )}
+          </main>
+
+          {composer}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Desktop / tablet: split studio (>= 1024px) ───
+  const leftPane = (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Left mode tabs */}
+      <div className="flex shrink-0 items-center gap-1 px-3 py-1.5 hairline-bottom">
+        <TabBtn active={leftMode === "code"} onClick={() => setLeftMode("code")} icon={Code2} label="Code" />
+        <TabBtn active={leftMode === "stream"} onClick={() => setLeftMode("stream")} icon={Eye} label="Stream" />
+        <TabBtn active={leftMode === "quality"} onClick={() => setLeftMode("quality")} icon={Gauge} label="Quality" />
+        {streaming && (
+          <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-phosphor">
+            <span className="size-1.5 rounded-full bg-phosphor animate-phosphor" />
+            stream
+          </span>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {leftMode === "code" && <CodePane code={code} streaming={streaming} />}
+        {leftMode === "quality" && <QualityPanel html={code} onFix={onFix} />}
+        {leftMode === "stream" && (
+          <div className="h-full overflow-y-auto no-scrollbar">
+            <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
+            {(streaming || milestones.size > 0) && (
+              <StreamTimeline reached={milestones} active={streaming} />
+            )}
+            <div className="px-3 py-3">
+              <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+                Prompt history
+              </div>
+              {history.length === 0 && (
+                <div className="font-mono text-[10px] text-muted-foreground/60">No prompts yet this session.</div>
+              )}
+              <ul className="space-y-1">
+                {history.map((h) => (
+                  <li
+                    key={h.at}
+                    className="hairline rounded-[5px] bg-surface px-2.5 py-2 font-mono text-[11px] text-muted-foreground"
+                  >
+                    <span className="mr-2 text-[9px] uppercase tracking-widest text-amber">
+                      {new Date(h.at).toLocaleTimeString()}
+                    </span>
+                    <span className="break-words">{h.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {composer}
+    </div>
+  );
+
+  const previewPane = (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Preview toolbar */}
+      <div className="flex shrink-0 items-center gap-2 px-3 py-1.5 hairline-bottom">
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Preview</span>
+        <div className="ml-auto flex items-center gap-2">
+          <ViewportSwitcher value={viewport} onChange={setViewport} />
+        </div>
+      </div>
+      <DeviceStage viewport={viewport}>
+        <PreviewFrame html={code} />
+      </DeviceStage>
+    </div>
+  );
 
   return (
     <div
@@ -376,228 +643,47 @@ function BuildRoute() {
       style={{ height: "100dvh", width: "100vw" }}
     >
       <Toaster theme="dark" position="top-center" />
-
-      <div
-        className="relative mx-auto grid w-full max-w-[640px] h-full min-h-0"
-        style={{
-          paddingTop: "env(safe-area-inset-top)",
-          paddingLeft: "max(env(safe-area-inset-left), 0px)",
-          paddingRight: "max(env(safe-area-inset-right), 0px)",
-          gridTemplateRows: "auto auto auto 1fr auto",
-          rowGap: 0,
-        }}
-      >
-        {/* TopBar */}
-        <header className="flex items-center justify-between px-3 py-2 hairline-bottom min-h-0">
-          <Link
-            to="/"
-            aria-label="Back"
-            onClick={() => tap()}
-            className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
-          <div className="flex min-w-0 flex-1 items-center justify-center px-3">
-            <span className="truncate font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              {streaming ? "Generating…" : title}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            {streaming ? (
-              <button
-                onClick={stopStream}
-                aria-label="Stop"
-                className="grid size-9 place-items-center rounded-[5px] hairline text-destructive hover:text-amber"
-              >
-                <Square className="size-4" />
-              </button>
-            ) : (
-              <button
-                onClick={designerPass}
-                disabled={!code || designerBusy}
-                aria-label="Make it beautiful"
-                title="AI Designer pass"
-                className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-phosphor disabled:opacity-40"
-              >
-                <Wand2 className={`size-4 ${designerBusy ? "animate-pulse" : ""}`} />
-              </button>
-            )}
-            <button
-              onClick={regenerate}
-              disabled={streaming || !title}
-              aria-label="Regenerate"
-              className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
-            >
-              <RotateCw className={`size-4 ${streaming ? "animate-spin" : ""}`} />
-            </button>
-            <button
-              onClick={copy}
-              disabled={!code}
-              aria-label="Copy HTML"
-              className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
-            >
-              <Copy className="size-4" />
-            </button>
-            <button
-              onClick={download}
-              disabled={!code}
-              aria-label="Download"
-              className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
-            >
-              <Download className="size-4" />
-            </button>
-            <button
-              onClick={downloadZip}
-              disabled={!code}
-              aria-label="Download .zip"
-              title="Export .zip with README"
-              className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
-            >
-              <Package className="size-4" />
-            </button>
-            <button
-              onClick={async () => {
-                if (!projectId || !parentBuildId) {
-                  toast.message("Save a build first");
-                  return;
-                }
-                const label = window.prompt("Snapshot label", title.slice(0, 40));
-                if (!label) return;
-                try {
-                  await createSnapshot({ buildId: parentBuildId, projectId, label });
-                  toast.success("Snapshot saved");
-                  tap();
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Snapshot failed");
-                }
-              }}
-              disabled={!parentBuildId || !projectId}
-              aria-label="Snapshot"
-              className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber disabled:opacity-40"
-            >
-              <Star className="size-4" />
-            </button>
-            {projectId && (
-              <Link
-                to="/projects/$projectId"
-                params={{ projectId }}
-                aria-label="Tree"
-                onClick={() => tap()}
-                className="grid size-9 place-items-center rounded-[5px] hairline text-muted-foreground hover:text-amber"
-              >
-                <GitBranch className="size-4" />
-              </Link>
-            )}
-          </div>
-        </header>
-
-        {/* Tabs */}
-        <div className="flex items-center gap-1 px-3 py-2 hairline-bottom min-h-0">
-          <TabBtn active={tab === "preview"} onClick={() => setTab("preview")} icon={Eye} label="Preview" />
-          <TabBtn active={tab === "code"} onClick={() => setTab("code")} icon={Code2} label="Code" />
-          <TabBtn active={tab === "quality"} onClick={() => setTab("quality")} icon={Gauge} label="Quality" />
-          <div className="ml-auto flex items-center gap-2">
-            {tab === "preview" && (
-              <ViewportSwitcher value={viewport} onChange={setViewport} />
-            )}
-            {streaming && (
-              <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-phosphor">
-                <span className="size-1.5 rounded-full bg-phosphor animate-phosphor" />
-                stream
-              </span>
-            )}
-            <button
-              onClick={toggleModel}
-              className="flex items-center gap-1 rounded-[5px] hairline px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-amber"
-            >
-              {model === "pro" ? "Pro" : "Flash"}
-              <ChevronDown className="size-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Stream progress + milestones */}
-        <div>
-          <StreamProgress phase={phase} bytes={bytes} elapsedMs={elapsedMs} />
-          {(streaming || milestones.size > 0) && (
-            <StreamTimeline reached={milestones} active={streaming} />
-          )}
-        </div>
-
-        {/* Stage */}
-        <main className="relative min-h-0 overflow-hidden">
-          {tab === "preview" ? (
-            <ViewportWrap viewport={viewport}>
-              <PreviewFrame html={code} />
-            </ViewportWrap>
-          ) : tab === "quality" ? (
-            <QualityPanel
-              html={code}
-              onFix={(fix) => {
-                setPrompt(fix);
-                setTab("preview");
-              }}
-            />
-          ) : (
-            <CodePane code={code} streaming={streaming} />
-          )}
-        </main>
-
-        {/* Mini composer */}
-        <div
-          className="hairline-top bg-background/85 backdrop-blur-xl px-3 pt-2"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
-        >
-          <div className="relative flex items-center gap-2 rounded-[5px] bg-surface hairline px-2 py-1.5">
-            {showSlash && (
-              <SlashMenu
-                query={prompt.trim()}
-                onPick={(p) => {
-                  setPrompt(p.template);
-                  setShowSlash(false);
-                }}
-                onClose={() => setShowSlash(false)}
+      {inspector}
+      <div className="flex h-full min-h-0 flex-col">
+        {header}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {previewOpen ? (
+            <Group orientation="horizontal" className="h-full" style={{ height: "100%" }}>
+              <Panel id="work" minSize="30%" defaultSize="52%" className="min-h-0">
+                {leftPane}
+              </Panel>
+              <Separator
+                className="w-px bg-[color:var(--border)] transition-colors hover:bg-[color:var(--amber)]"
+                aria-label="Resize panes"
               />
-            )}
-            <input
-              value={prompt}
-              onChange={(e) => onPromptChange(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                  e.preventDefault();
-                  submit();
-                } else if (e.key === "Enter" && !e.shiftKey && !showSlash) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              placeholder={code ? "Iterate, or type / for presets" : "Describe what to build (try /landing)…"}
-              className="flex-1 bg-transparent px-2 py-1 font-mono text-foreground placeholder:text-muted-foreground focus:outline-none"
-              style={{ fontSize: "16px" }}
-            />
-            <button
-              onClick={enhancePrompt}
-              disabled={!prompt.trim() || enhancing || streaming}
-              aria-label="Enhance prompt"
-              title="Enhance prompt (AI)"
-              className="grid size-9 place-items-center rounded-[5px] hairline text-phosphor transition-opacity disabled:opacity-30"
-            >
-              <Sparkles className={`size-4 ${enhancing ? "animate-pulse" : ""}`} />
-            </button>
-            <button
-              onClick={submit}
-              disabled={!prompt.trim() || streaming}
-              aria-label="Send"
-              className="grid size-9 place-items-center rounded-[5px] bg-amber text-black transition-opacity disabled:opacity-30"
-              style={{ boxShadow: prompt.trim() && !streaming ? "0 0 24px -6px var(--amber)" : "none" }}
-            >
-              <ArrowUp className="size-4" />
-            </button>
-          </div>
-          <div className="mt-1 px-1 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
-            ⌘+Enter send · / presets · ✦ enhance
-          </div>
+              <Panel id="preview" minSize="30%" defaultSize="48%" className="min-h-0">
+                {previewPane}
+              </Panel>
+            </Group>
+          ) : (
+            leftPane
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DeviceStage({
+  viewport,
+  children,
+}: {
+  viewport: ViewportKey;
+  children: React.ReactNode;
+}) {
+  const w = VIEWPORT_WIDTH[viewport];
+  return (
+    <div className="min-h-0 flex-1 overflow-auto bg-background/50 p-2">
+      <div
+        className="mx-auto h-full hairline overflow-hidden bg-white transition-[width] duration-300 ease-out"
+        style={{ width: w === null ? "100%" : Math.min(w, 9999), maxWidth: "100%" }}
+      >
+        {children}
       </div>
     </div>
   );
