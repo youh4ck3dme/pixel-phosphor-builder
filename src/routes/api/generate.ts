@@ -6,6 +6,8 @@ type Body = {
   prompt: string;
   prevHtml?: string;
   model?: ModelKey;
+  temperature?: number;
+  maxTokens?: number;
 };
 
 export const Route = createFileRoute("/api/generate")({
@@ -43,6 +45,10 @@ export const Route = createFileRoute("/api/generate")({
 
         const model = config.models[body.model ?? "flash"] ?? config.models.flash;
 
+        // Clamp client-supplied generation parameters to safe ranges
+        const temp = typeof body.temperature === "number" ? Math.max(0, Math.min(1, body.temperature)) : 0.7;
+        const maxTok = typeof body.maxTokens === "number" ? Math.max(256, Math.min(16384, body.maxTokens)) : 8192;
+
         const upstream = await fetch(config.baseUrl, {
           method: "POST",
           headers: {
@@ -52,6 +58,8 @@ export const Route = createFileRoute("/api/generate")({
           body: JSON.stringify({
             model,
             stream: true,
+            temperature: temp,
+            max_tokens: maxTok,
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
               { role: "user", content: userText },

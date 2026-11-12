@@ -60,6 +60,7 @@ export function StudioHeader({
   onTogglePreview,
   inspectorOpen,
   onToggleInspector,
+  onOpenPalette,
 }: {
   title: string;
   onTitleCommit: (t: string) => void;
@@ -85,6 +86,7 @@ export function StudioHeader({
   onTogglePreview: () => void;
   inspectorOpen: boolean;
   onToggleInspector: () => void;
+  onOpenPalette: () => void;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(title);
@@ -126,6 +128,7 @@ export function StudioHeader({
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === "Enter") { e.preventDefault(); commit(); }
               if (e.key === "Escape") setEditing(false);
@@ -134,7 +137,11 @@ export function StudioHeader({
             style={{ maxWidth: 220 }}
           />
         ) : (
-          <span className="truncate font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          <span
+            onDoubleClick={() => { setDraft(title); setEditing(true); }}
+            title="Double-click to rename"
+            className="cursor-text truncate font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
+          >
             {streaming ? "Generating…" : title}
           </span>
         )}
@@ -191,9 +198,23 @@ export function StudioHeader({
             {previewOpen ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
           </HeaderBtn>
         )}
-        <HeaderBtn label="Inspector" onClick={onToggleInspector}>
+        <button
+          onClick={onToggleInspector}
+          aria-label="Inspector"
+          className={`grid size-8 place-items-center rounded-[5px] hairline transition-colors ${
+            inspectorOpen ? "text-amber" : "text-muted-foreground hover:text-amber"
+          }`}
+        >
           <SlidersHorizontal className="size-4" />
-        </HeaderBtn>
+        </button>
+        <button
+          onClick={onOpenPalette}
+          aria-label="Command palette (⌘K)"
+          title="Command palette (⌘K)"
+          className="hidden shrink-0 items-center rounded-[5px] hairline px-2 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-amber sm:flex"
+        >
+          ⌘K
+        </button>
         <HeaderBtn label="Share build link" onClick={onShare}>
           <Share2 className="size-4" />
         </HeaderBtn>

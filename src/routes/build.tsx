@@ -13,6 +13,7 @@ import { QualityPanel } from "@/components/build/QualityPanel";
 import { StudioHeader } from "@/components/build/StudioHeader";
 import { StudioInspector } from "@/components/build/StudioInspector";
 import { StudioComposer } from "@/components/build/StudioComposer";
+import { StudioCommandPalette } from "@/components/build/StudioCommandPalette";
 import { detectMilestones, MILESTONE_ORDER, type Milestone } from "@/lib/html.milestones";
 import { auditHtml } from "@/lib/html.quality";
 import { exportBuildZip } from "@/lib/export.zip";
@@ -20,7 +21,7 @@ import { saveBuild, newId, getBuild, getModel, setModel, type Build } from "@/li
 import { tap } from "@/hooks/useHaptic";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { supabase } from "@/integrations/supabase/client";
-import { saveCloudBuild, getBuildById } from "@/lib/builds.cloud";
+import { saveCloudBuild, getBuildById, renameProject } from "@/lib/builds.cloud";
 import { createSnapshot } from "@/lib/snapshots";
 import { type PromptPreset } from "@/lib/prompt.presets";
 
@@ -77,6 +78,7 @@ function BuildRoute() {
   const [maxTokens, setMaxTokens] = React.useState(8192);
   const [latencyMs, setLatencyMs] = React.useState<number | null>(null);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
 
   // Tick elapsed time while streaming
   React.useEffect(() => {
@@ -168,7 +170,13 @@ function BuildRoute() {
       const resp = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: userPrompt, prevHtml: prevHtml || undefined, model }),
+        body: JSON.stringify({
+          prompt: userPrompt,
+          prevHtml: prevHtml || undefined,
+          model,
+          temperature,
+          maxTokens,
+        }),
         signal: ctrl.signal,
       });
 
@@ -434,12 +442,24 @@ function BuildRoute() {
     }
   }, [code, streaming]);
 
+  async function handleTitleCommit(newTitle: string) {
+    if (newTitle === title) return;
+    setTitle(newTitle);
+    if (!projectId) return;
+    try {
+      await renameProject(projectId, newTitle);
+      toast.success("Project renamed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rename failed");
+    }
+  }
+
   const docKB = bytes / 1024;
 
   const header = (
     <StudioHeader
       title={title}
-      onTitleCommit={setTitle}
+      onTitleCommit={handleTitleCommit}
       version={version}
       streaming={streaming}
       qualityScore={quality ? quality.score : null}
@@ -462,6 +482,28 @@ function BuildRoute() {
       onTogglePreview={() => setPreviewOpen((o) => !o)}
       inspectorOpen={inspectorOpen}
       onToggleInspector={() => setInspectorOpen((o) => !o)}
+      onOpenPalette={() => setPaletteOpen(true)}
+    />
+  );
+
+  const palette = (
+    <StudioCommandPalette
+      open={paletteOpen}
+      onOpenChange={setPaletteOpen}
+      canDesigner={!!code && !streaming}
+      onDesignerPass={designerPass}
+      onToggleInspector={() => setInspectorOpen((o) => !o)}
+      canSnapshot={!!(parentBuildId && projectId)}
+      onSnapshot={snapshot}
+      canExport={!!code}
+      onDownloadHtml={download}
+      onDownloadZip={downloadZip}
+      onCopy={copy}
+      onViewport={(v) => setViewport(v)}
+      onModel={changeModel}
+      onPickPreset={onPickPreset}
+      canSubmit={!!prompt.trim() && !streaming}
+      onSubmit={submit}
     />
   );
 
@@ -476,6 +518,7 @@ function BuildRoute() {
       maxTokens={maxTokens}
       onMaxTokens={setMaxTokens}
       streaming={streaming}
+      phase={phase}
       docKB={docKB}
       latencyMs={latencyMs}
       milestonesDone={milestones.size}
@@ -513,6 +556,7 @@ function BuildRoute() {
       >
         <Toaster theme="dark" position="top-center" />
         {inspector}
+        {palette}
         <div
           className="relative mx-auto grid h-full w-full max-w-[640px] min-h-0"
           style={{
@@ -644,6 +688,7 @@ function BuildRoute() {
     >
       <Toaster theme="dark" position="top-center" />
       {inspector}
+      {palette}
       <div className="flex h-full min-h-0 flex-col">
         {header}
         <div className="min-h-0 flex-1 overflow-hidden">
