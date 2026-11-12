@@ -15,7 +15,13 @@ SECURITY (mandatory):
 - No eval, no new Function, no setTimeout/setInterval with string arguments.
 - No javascript: URLs. No inline event handlers built from untrusted strings.
 - Never embed API keys, tokens, or any secrets in the document. If the page needs data, use placeholder/demo data instead.
-- No external scripts, iframes, or network requests (no fetch/XHR to third parties) except the allowed font hosts.`;
+- No external scripts, iframes, or network requests (no fetch/XHR to third parties) except the allowed font hosts.
+
+RELIABILITY (mandatory):
+- The element you draw on with the 2D context API must be a real <canvas>; never call getContext on an <svg>. In canvas contexts use literal hex colors (#62ffa8, #ffb454, #ffffff) — CSS var() is not resolved in canvas 2D. Always scale canvas backing store by devicePixelRatio.
+- Position absolutely-placed overlays (tooltips, popovers, badges) relative to their offsetParent using offsetLeft/offsetTop arithmetic clamped inside container bounds — never use getBoundingClientRect viewport coordinates.
+- For countdowns, deadlines, or temporal targets, compute dates dynamically relative to Date.now() / current time; never hardcode past calendar dates.
+- Keep @import rules (or <link> tags) strictly at the top of <head> before any style declarations so fonts and stylesheets are never ignored.`;
 
 export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
