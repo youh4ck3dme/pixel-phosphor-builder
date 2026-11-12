@@ -52,24 +52,72 @@ const SUGGESTIONS_BY_MODE: Record<string, string[]> = {
 };
 
 const PROMPT_PLACEHOLDERS = [
+  "Design a glass dashboard…",
   "Build a SaaS landing page…",
   "Generate a pricing table…",
-  "Design a glass dashboard…",
   "Make a portfolio for a designer…",
 ];
 
 const KPIS = [
-  { label: "Tasks completed", value: 1284, delta: "+12%", spark: [4,6,5,8,7,10,9,12,14,13,15,18] },
-  { label: "Hours saved",     value: 96.4, decimals: 1, suffix: "h", delta: "+4.2h", spark: [2,3,3,4,5,5,6,7,8,8,9,10] },
-  { label: "Success rate",    value: 98.2, decimals: 1, suffix: "%", delta: "+0.8%", spark: [90,92,93,94,95,95,96,97,97,98,98,98] },
-  { label: "Connected apps",  value: 14,   delta: "+2",  spark: [6,7,8,8,9,10,11,11,12,13,13,14] },
+  { label: "Tasks", shortLabel: "Tasks", value: 1284, delta: "+12%", spark: [4,6,5,8,7,10,9,12,14,13,15,18] },
+  { label: "Saved", shortLabel: "Hours", value: 96.4, decimals: 1, suffix: "h", delta: "+4.2h", spark: [2,3,3,4,5,5,6,7,8,8,9,10] },
+  { label: "Rate",  shortLabel: "Success", value: 98.2, decimals: 1, suffix: "%", delta: "+0.8%", spark: [90,92,93,94,95,95,96,97,97,98,98,98] },
+  { label: "Apps",  shortLabel: "Apps", value: 14, delta: "+2", spark: [6,7,8,8,9,10,11,11,12,13,13,14] },
 ];
 
-const AGENTS = [
-  { name: "Researcher", desc: "Gathers sources & synthesizes",  progress: 84, color: "var(--phosphor)", starter: "Research the top 5 EV brands and summarize differentiators" },
-  { name: "Analyst",    desc: "Crunches data, surfaces signal", progress: 62, color: "var(--phosphor)", starter: "Build a dashboard analyzing Q4 sales with charts" },
-  { name: "Planner",    desc: "Breaks goals into next actions", progress: 48, color: "var(--amber)",    starter: "Plan a 7-day product launch with daily milestones" },
-  { name: "Writer",     desc: "Drafts and edits long-form copy",progress: 91, color: "var(--phosphor)", starter: "Write a landing page hero + 3 features for an AI startup" },
+const AI_MODELS = [
+  {
+    id: "mistral-small",
+    name: "Mistral Small 3",
+    initials: "MS",
+    badge: "Flash",
+    desc: "Ultra-fast code generation & micro-diffs",
+    tokensUsed: "820K",
+    tokensTotal: "1.0M",
+    percent: 82,
+    status: "Active",
+    color: "var(--phosphor)",
+    starter: "Build a high-converting minimalist SaaS landing page with phosphor green accents",
+  },
+  {
+    id: "mistral-large",
+    name: "Mistral Large 2",
+    initials: "ML",
+    badge: "Pro",
+    desc: "Deep reasoning, full-app architecture & AST safety",
+    tokensUsed: "450K",
+    tokensTotal: "1.0M",
+    percent: 45,
+    status: "Standby",
+    color: "var(--amber)",
+    starter: "Design a dark telemetry analytics dashboard with real-time SVG charts",
+  },
+  {
+    id: "lovable-gateway",
+    name: "Lovable Gateway",
+    initials: "LG",
+    badge: "Edge",
+    desc: "Gemini 2.5 Flash failover & streaming buffer",
+    tokensUsed: "940K",
+    tokensTotal: "1.0M",
+    percent: 94,
+    status: "Online",
+    color: "var(--phosphor)",
+    starter: "Create a Swiss-typography portfolio with project grid and interactive modal",
+  },
+  {
+    id: "ast-synthesizer",
+    name: "AST Synthesizer",
+    initials: "AST",
+    badge: "Engine",
+    desc: "Milestone validation & security sanitization",
+    tokensUsed: "100%",
+    tokensTotal: "Ready",
+    percent: 100,
+    status: "Shielded",
+    color: "var(--phosphor)",
+    starter: "Generate a multi-step checkout form with card validation and receipt modal",
+  },
 ];
 
 /* ──────────────────────────────────────────────────────────── */
@@ -82,6 +130,7 @@ function PhosphorHome() {
   const navigate = useNavigate();
   const [authed, setAuthed] = React.useState(false);
   const [initial, setInitial] = React.useState("A");
+  const [focusSignal, setFocusSignal] = React.useState(0);
 
   // Track auth + run one-time local→cloud migration on first authed mount
   React.useEffect(() => {
@@ -114,6 +163,13 @@ function PhosphorHome() {
     setPrompt("");
     navigate({ to: "/build", search: { q: text } });
   }, [navigate]);
+
+  // Pick an AI model starter → fill composer + focus it
+  const pickModelStarter = React.useCallback((starter: string) => {
+    tap();
+    setPrompt(starter);
+    setFocusSignal((n) => n + 1);
+  }, []);
 
   // Mic with real Web Audio amplitude
   const audioRef = React.useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
@@ -165,38 +221,42 @@ function PhosphorHome() {
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-40" />
 
       <div
-        className="relative mx-auto grid w-full max-w-[480px] h-full min-h-0"
+        className="relative mx-auto flex h-full w-full max-w-[480px] min-h-0 flex-col"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingLeft: "max(env(safe-area-inset-left), clamp(12px, 4vw, 20px))",
           paddingRight: "max(env(safe-area-inset-right), clamp(12px, 4vw, 20px))",
-          gridTemplateRows:
-            "auto auto auto auto auto minmax(120px, 0.9fr) minmax(140px, 1fr) auto",
-          rowGap: "clamp(8px, 1.6vh, 16px)",
-          paddingBottom: 0,
         }}
       >
-        <TopBar authed={authed} initial={initial} onAvatar={() => navigate({ to: authed ? "/projects" : "/auth" })} />
-        <ModeTabs mode={mode} setMode={setMode} />
-        <Hero />
-        <Composer
-          prompt={prompt}
-          setPrompt={setPrompt}
-          recording={recording}
-          amp={amp}
-          onMicDown={startMic}
-          onMicUp={stopMic}
-          mode={mode}
-          onSend={() => submitPrompt(prompt)}
-        />
-        <Suggestions mode={mode} onPick={(s) => submitPrompt(s)} />
-        <KpiGrid />
-        <AgentList onPick={(starter) => submitPrompt(starter)} />
-        <BottomNav
-          onNew={() => navigate({ to: "/build", search: {} })}
-          onProjects={() => navigate({ to: "/projects" })}
-          onAuth={() => navigate({ to: authed ? "/projects" : "/auth" })}
-        />
+        {/* ─── Upper scrollable-free zone ─── */}
+        <div className="flex flex-1 min-h-0 flex-col justify-between gap-2 overflow-hidden">
+          <TopBar authed={authed} initial={initial} onAvatar={() => navigate({ to: authed ? "/projects" : "/auth" })} />
+          <ModeTabs mode={mode} setMode={setMode} />
+          <Hero />
+          <Suggestions mode={mode} onPick={(s) => submitPrompt(s)} />
+          <ModelsTelemetryList onPick={(m) => pickModelStarter(m.starter)} />
+          <KpiStrip />
+        </div>
+
+        {/* ─── Docked bottom group: composer above nav ─── */}
+        <div className="shrink-0">
+          <Composer
+            prompt={prompt}
+            setPrompt={setPrompt}
+            recording={recording}
+            amp={amp}
+            onMicDown={startMic}
+            onMicUp={stopMic}
+            mode={mode}
+            onSend={() => submitPrompt(prompt)}
+            focusSignal={focusSignal}
+          />
+          <BottomNav
+            onNew={() => navigate({ to: "/build", search: {} })}
+            onProjects={() => navigate({ to: "/projects" })}
+            onAuth={() => navigate({ to: authed ? "/projects" : "/auth" })}
+          />
+        </div>
       </div>
     </div>
   );
@@ -301,7 +361,7 @@ function Hero() {
 
 /* ──────────────── Composer ──────────────── */
 function Composer({
-  prompt, setPrompt, recording, amp, onMicDown, onMicUp, mode, onSend,
+  prompt, setPrompt, recording, amp, onMicDown, onMicUp, mode, onSend, focusSignal,
 }: {
   prompt: string;
   setPrompt: (s: string) => void;
@@ -311,11 +371,18 @@ function Composer({
   onMicUp: () => void;
   mode: string;
   onSend: () => void;
+  focusSignal: number;
 }) {
   const [focus, setFocus] = React.useState(false);
   const [enhancing, setEnhancing] = React.useState(false);
   const placeholder = useRotatingPlaceholder(PROMPT_PLACEHOLDERS, 3000);
   const navigate = useNavigate();
+  const taRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Focus the prompt input when a model starter or suggestion chip targets it
+  React.useEffect(() => {
+    if (focusSignal > 0) taRef.current?.focus();
+  }, [focusSignal]);
 
   async function magicComplete() {
     const p = prompt.trim();
@@ -356,6 +423,7 @@ function Composer({
     >
       <div className="relative">
         <textarea
+          ref={taRef}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onFocus={() => setFocus(true)}
@@ -368,7 +436,7 @@ function Composer({
             }
           }}
           rows={2}
-          className="block w-full resize-none rounded-t-[5px] bg-transparent px-4 pt-3 pb-1 font-mono leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
+          className="block w-full resize-none rounded-t-[5px] bg-transparent px-4 pt-2.5 pb-0.5 font-mono leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
           style={{ fontSize: "16px" }}
         />
         {!prompt && focus && (
@@ -376,7 +444,7 @@ function Composer({
         )}
       </div>
 
-      <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+      <div className="flex items-center gap-2 px-3 pb-1.5 pt-0.5">
         <IconBtn aria-label="Attach"><Plus className="size-4" /></IconBtn>
         <Chip>Pro <ChevronDown className="size-3" /></Chip>
         <Chip>{mode[0].toUpperCase() + mode.slice(1)} <ChevronDown className="size-3" /></Chip>
@@ -492,65 +560,83 @@ function Suggestions({ mode, onPick }: { mode: string; onPick: (s: string) => vo
   );
 }
 
-/* ──────────────── KPI grid ──────────────── */
-function KpiGrid() {
+/* ──────────────── KPI strip (4 columns, single row) ──────────────── */
+function KpiStrip() {
   return (
-    <section className="min-h-0 flex flex-col overflow-hidden">
-      <SectionLabel>Performance · last 30d</SectionLabel>
-      <div className="mt-2 grid grid-cols-2 grid-rows-2 gap-2 flex-1 min-h-0">
+    <section className="flex shrink-0 flex-col min-h-0">
+      <SectionLabel>Telemetry · 30d</SectionLabel>
+      <div className="mt-1.5 grid w-full shrink-0 min-h-0 grid-cols-4 gap-1.5">
         {KPIS.map((k) => (
-          <Parallax key={k.label} intensity={3} className="min-h-0 min-w-0">
-            <div className="rounded-[5px] hairline bg-surface h-full flex flex-col justify-between overflow-hidden min-w-0" style={{ padding: "clamp(8px, 2vw, 12px)" }}>
-              <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground truncate shrink-0">
-                {k.label}
-              </div>
-              <div className="font-mono font-medium leading-none text-foreground tabular-nums truncate" style={{ fontSize: "clamp(18px, 5.4vw, 26px)" }}>
-                <CountUp to={k.value} decimals={k.decimals ?? 0} suffix={k.suffix ?? ""} />
-              </div>
-              <div className="flex items-end justify-between gap-1 shrink-0 min-w-0">
-                <span className="font-mono text-[9px] text-amber truncate">{k.delta}</span>
-                <div className="overflow-hidden shrink-0">
-                  <Sparkline data={k.spark} width={48} height={14} />
-                </div>
-              </div>
+          <div
+            key={k.label}
+            className="flex min-w-0 flex-col justify-between overflow-hidden rounded-[5px] bg-surface hairline p-2"
+          >
+            <div className="truncate font-mono text-[8.5px] uppercase tracking-wider text-muted-foreground">
+              {k.shortLabel}
             </div>
-          </Parallax>
+            <div
+              className="truncate font-mono font-medium leading-tight tabular-nums text-foreground"
+              style={{ fontSize: "clamp(13px, 3.6vw, 17px)" }}
+            >
+              <CountUp to={k.value} decimals={k.decimals ?? 0} suffix={k.suffix ?? ""} />
+            </div>
+            <div className="flex shrink-0 items-center justify-between gap-1 min-w-0">
+              <span className="truncate font-mono text-[8px] text-amber">{k.delta}</span>
+              <Sparkline data={k.spark} width={28} height={10} />
+            </div>
+          </div>
         ))}
       </div>
     </section>
   );
 }
 
-/* ──────────────── Agents ──────────────── */
-function AgentList({ onPick }: { onPick: (starter: string) => void }) {
+/* ──────────────── AI models & token quota telemetry ──────────────── */
+function ModelsTelemetryList({ onPick }: { onPick: (m: (typeof AI_MODELS)[number]) => void }) {
   return (
-    <section className="min-h-0 flex flex-col">
-      <div className="flex items-center justify-between shrink-0">
-        <SectionLabel>Your agents</SectionLabel>
-        <button className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-amber">
-          View all →
-        </button>
+    <section className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center justify-between">
+        <SectionLabel>AI Models & Token Quota</SectionLabel>
+        <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-phosphor">
+          <span className="size-1.5 rounded-full bg-phosphor animate-pulse" />
+          Live
+        </span>
       </div>
       <ul
-        className="mt-2 divide-y divide-[color:var(--border)] hairline rounded-[5px] bg-surface overflow-y-auto no-scrollbar scroll-fade flex-1 min-h-0"
+        className="mt-1.5 flex-1 min-h-0 divide-y divide-[color:var(--border)] overflow-y-auto rounded-[5px] bg-surface hairline no-scrollbar"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        {AGENTS.map((a) => (
-          <li key={a.name}>
+        {AI_MODELS.map((m) => (
+          <li key={m.id}>
             <button
-              onClick={() => onPick(a.starter)}
-              className="group flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-2"
+              onClick={() => onPick(m)}
+              className="group flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition-colors hover:bg-surface-2"
             >
-              <div className="grid size-9 place-items-center rounded-[5px] hairline bg-background shrink-0">
-                <span className="font-display text-[15px] text-amber">{a.name[0]}</span>
+              <div className="grid size-8 shrink-0 place-items-center rounded-[5px] bg-background hairline">
+                <span
+                  className="font-display text-[12px] leading-none"
+                  style={{ color: m.color }}
+                >
+                  {m.initials}
+                </span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-display text-[14px] text-foreground leading-tight">{a.name}</div>
-                <div className="truncate font-mono text-[11px] text-muted-foreground">{a.desc}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate font-display text-[13px] leading-tight text-foreground">{m.name}</span>
+                  <span className="shrink-0 rounded bg-surface-2 hairline px-1 py-px font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                    {m.badge}
+                  </span>
+                </div>
+                <div className="truncate font-mono text-[10px] text-muted-foreground">{m.desc}</div>
+                <div className="mt-0.5 font-mono text-[9px] text-muted-foreground/80">
+                  Quota: {m.tokensUsed} / {m.tokensTotal} tokens · {m.status}
+                </div>
               </div>
-              <div className="relative grid size-9 place-items-center shrink-0">
-                <ProgressRing value={a.progress} color={a.color} />
-                <span className="absolute font-mono text-[9px] text-muted-foreground">{a.progress}</span>
+              <div className="relative grid size-8 shrink-0 place-items-center">
+                <ProgressRing value={m.percent} color={m.color} size={32} stroke={2.5} />
+                <span className="absolute font-mono text-[8px] tabular-nums text-muted-foreground">
+                  {m.percent}
+                </span>
               </div>
             </button>
           </li>
