@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { PROMPT_PRESETS, type PromptPreset } from "@/lib/prompt.presets";
 import type { ViewportKey } from "@/components/build/ViewportSwitcher";
+import { DialogTitle } from "@/components/ui/dialog";
 
 const PRESET_ORDER = ["landing", "dashboard", "pricing", "portfolio", "form"] as const;
 
@@ -138,6 +139,7 @@ export function StudioCommandPalette({
       overlayClassName="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
       contentClassName="fixed left-1/2 top-[16%] z-[71] w-[min(560px,92vw)] -translate-x-1/2 overflow-hidden rounded-[5px] bg-background hairline shadow-2xl"
     >
+      <DialogTitle className="sr-only">Studio commands</DialogTitle>
       <Command.Input
         autoFocus
         placeholder="Type a command or search…"

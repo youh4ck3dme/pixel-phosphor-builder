@@ -21,6 +21,7 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as ApiEnhanceRouteImport } from './routes/api/enhance'
 import { Route as ApiGenerateRouteImport } from './routes/api/generate'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
+import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as RemixBuildIdRouteImport } from './routes/remix.$buildId'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -88,6 +89,11 @@ const PSlugRoute = PSlugRouteImport.update({
   path: '/p/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProjectsRoute,
+} as any)
 const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   id: '/$projectId',
   path: '/$projectId',
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/p/$slug': typeof PSlugRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/remix/$buildId': typeof RemixBuildIdRoute
+  '/projects/': typeof ProjectsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -134,7 +141,6 @@ export interface FileRoutesByTo {
   '/build': typeof BuildRoute
   '/diff': typeof DiffRoute
   '/mcp': typeof McpRoute
-  '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -143,6 +149,7 @@ export interface FileRoutesByTo {
   '/p/$slug': typeof PSlugRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/remix/$buildId': typeof RemixBuildIdRoute
+  '/projects': typeof ProjectsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -162,6 +169,7 @@ export interface FileRoutesById {
   '/p/$slug': typeof PSlugRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/remix/$buildId': typeof RemixBuildIdRoute
+  '/projects/': typeof ProjectsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -182,6 +190,7 @@ export interface FileRouteTypes {
     | '/p/$slug'
     | '/projects/$projectId'
     | '/remix/$buildId'
+    | '/projects/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesByTo: FileRoutesByTo
@@ -191,7 +200,6 @@ export interface FileRouteTypes {
     | '/build'
     | '/diff'
     | '/mcp'
-    | '/projects'
     | '/reset-password'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -200,6 +208,7 @@ export interface FileRouteTypes {
     | '/p/$slug'
     | '/projects/$projectId'
     | '/remix/$buildId'
+    | '/projects'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
   id:
@@ -218,6 +227,7 @@ export interface FileRouteTypes {
     | '/p/$slug'
     | '/projects/$projectId'
     | '/remix/$buildId'
+    | '/projects/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesById: FileRoutesById
@@ -326,6 +336,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/': {
+      id: '/projects/'
+      path: '/'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof ProjectsIndexRouteImport
+      parentRoute: typeof ProjectsRoute
+    }
     '/projects/$projectId': {
       id: '/projects/$projectId'
       path: '/$projectId'
@@ -359,10 +376,12 @@ declare module '@tanstack/react-router' {
 
 interface ProjectsRouteChildren {
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
+  ProjectsIndexRoute: typeof ProjectsIndexRoute
 }
 
 const ProjectsRouteChildren: ProjectsRouteChildren = {
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
+  ProjectsIndexRoute: ProjectsIndexRoute,
 }
 
 const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
