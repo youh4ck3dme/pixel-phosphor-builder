@@ -12,9 +12,48 @@ RULES:
 
 export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
-export const MODELS = {
-  flash: "google/gemini-2.5-flash",
-  pro: "google/gemini-2.5-pro",
-} as const;
+export type ModelKey = "flash" | "pro";
+export type ProviderKey = "mistral" | "lovable";
 
-export type ModelKey = keyof typeof MODELS;
+export type ProviderConfig = {
+  baseUrl: string;
+  models: Record<ModelKey, string>;
+};
+
+// Mistral is the primary AI provider; the Lovable gateway stays as a fallback
+// so the app keeps working when MISTRAL_API_KEY is not configured.
+export const PROVIDERS: Record<ProviderKey, ProviderConfig> = {
+  mistral: {
+    baseUrl: "https://api.mistral.ai/v1/chat/completions",
+    models: {
+      flash: "mistral-small-latest",
+      pro: "mistral-large-latest",
+    },
+  },
+  lovable: {
+    baseUrl: "https://ai.gateway.lovable.dev/v1/chat/completions",
+    models: {
+      flash: "google/gemini-2.5-flash",
+      pro: "google/gemini-2.5-pro",
+    },
+  },
+};
+
+/**
+ * Resolve the active AI provider. Keys are read from the server environment
+ * only and are never exposed to the client bundle.
+ * Priority: MISTRAL_API_KEY (primary) → LOVABLE_API_KEY (fallback).
+ */
+export function resolveProvider():
+  | { provider: ProviderKey; config: ProviderConfig; apiKey: string }
+  | null {
+  const mistralKey = process.env.MISTRAL_API_KEY;
+  if (mistralKey) {
+    return { provider: "mistral", config: PROVIDERS.mistral, apiKey: mistralKey };
+  }
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  if (lovableKey) {
+    return { provider: "lovable", config: PROVIDERS.lovable, apiKey: lovableKey };
+  }
+  return null;
+}

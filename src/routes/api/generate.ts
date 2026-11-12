@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SYSTEM_PROMPT, MODELS, type ModelKey } from "@/lib/ai";
+import { SYSTEM_PROMPT, resolveProvider, type ModelKey } from "@/lib/ai";
 
 type Body = {
   prompt: string;
@@ -21,21 +21,22 @@ export const Route = createFileRoute("/api/generate")({
           });
         }
 
-        const apiKey = process.env.LOVABLE_API_KEY;
-        if (!apiKey) {
-          return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          });
+        const resolved = resolveProvider();
+        if (!resolved) {
+          return new Response(
+            JSON.stringify({ error: "AI not configured. Set MISTRAL_API_KEY (primary) or LOVABLE_API_KEY (fallback)." }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
         }
+        const { config, apiKey } = resolved;
 
         const userText = body.prevHtml
           ? `Previous HTML document:\n\n${body.prevHtml}\n\n---\nUser change request:\n${body.prompt}\n\nReturn the FULL updated HTML document.`
           : body.prompt;
 
-        const model = MODELS[body.model ?? "flash"] ?? MODELS.flash;
+        const model = config.models[body.model ?? "flash"] ?? config.models.flash;
 
-        const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const upstream = await fetch(config.baseUrl, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -64,6 +65,12 @@ export const Route = createFileRoute("/api/generate")({
               JSON.stringify({ error: "AI credits exhausted. Top up in Settings → Workspace → Usage." }),
               { status: 402, headers: { "Content-Type": "application/json" } },
             );
+          }
+          if (upstream.status === 401 || upstream.status === 403) {
+            return new Response(JSON.stringify({ error: "AI provider rejected the API key." }), {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            });
           }
           return new Response(JSON.stringify({ error: text || "AI gateway error" }), {
             status: 500,

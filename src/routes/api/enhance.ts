@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { resolveProvider } from "@/lib/ai";
 
 type Body = { prompt: string };
 
@@ -34,18 +35,19 @@ export const Route = createFileRoute("/api/enhance")({
             headers: { "Content-Type": "application/json" },
           });
         }
-        const apiKey = process.env.LOVABLE_API_KEY;
-        if (!apiKey) {
-          return new Response(JSON.stringify({ error: "AI not configured" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          });
+        const resolved = resolveProvider();
+        if (!resolved) {
+          return new Response(
+            JSON.stringify({ error: "AI not configured. Set MISTRAL_API_KEY (primary) or LOVABLE_API_KEY (fallback)." }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
         }
-        const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const { config, apiKey } = resolved;
+        const upstream = await fetch(config.baseUrl, {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: config.models.flash,
             messages: [
               { role: "system", content: SYSTEM },
               { role: "user", content: body.prompt },
