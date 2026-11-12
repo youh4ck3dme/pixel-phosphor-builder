@@ -15,6 +15,13 @@
       "when": 1794494082369,
       "tag": "0001_block_anonymous_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794510799852,
+      "tag": "0002_lock_has_role",
+      "breakpoints": true
     }
   ]
 }
